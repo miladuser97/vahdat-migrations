@@ -1,0 +1,125 @@
+name: Supabase Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'نوع backup'
+        required: true
+        default: 'data'
+        type: choice
+        options:
+          - data
+          - schema
+          - full
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Create backup directory
+        run: mkdir -p backups
+
+      - name: Data Export (JSON via Node.js)
+        if: ${{ inputs.backup_type == 'data' || inputs.backup_type == 'full' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cat > backup.js << 'EOF'
+          const https = require('https');
+          const fs = require('fs');
+          
+          const SUPABASE_URL = process.env.SUPABASE_URL;
+          const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          
+          const TABLES = [
+            'User', 'Session', 'Address',
+            'Brand', 'Category', 'Product', 'ProductVariant',
+            'MediaAsset', 'ProductMedia', 'MediaCandidate',
+            'Coupon', 'Order', 'OrderItem', 'PaymentAttempt',
+            'Review', 'Wishlist', 'Compare', 'Notification',
+            'RepairRequest', 'HomeSection', 'TrustBadge', 'SiteSetting'
+          ];
+          
+          function fetchTable(table) {
+            return new Promise((resolve, reject) => {
+              const options = {
+                hostname: new URL(SUPABASE_URL).hostname,
+                path: `/rest/v1/${table}?select=*`,
+                method: 'GET',
+                headers: {
+                  'apikey': SERVICE_ROLE_KEY,
+                  'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+                  'Content-Type': 'application/json'
+                }
+              };
+              https.get(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    const json = JSON.parse(data);
+                    resolve({ table, rows: json, count: Array.isArray(json) ? json.length : 0 });
+                  } catch (e) {
+                    resolve({ table, rows: [], count: 0, error: data });
+                  }
+                });
+              }).on('error', reject);
+            });
+          }
+          
+          async function main() {
+            console.log('🚀 شروع backup...\n');
+            const result = {
+              backupDate: new Date().toISOString(),
+              supabaseUrl: SUPABASE_URL,
+              tables: {}
+            };
+            let totalRows = 0;
+            for (const table of TABLES) {
+              const data = await fetchTable(table);
+              result.tables[table] = data.rows;
+              totalRows += data.count;
+              console.log(`✅ ${table}: ${data.count}`);
+            }
+            const filename = `backups/data-${new Date().toISOString().slice(0,10)}.json`;
+            fs.writeFileSync(filename, JSON.stringify(result, null, 2), 'utf8');
+            console.log(`\n📦 ${filename}`);
+            console.log(`📊 ${totalRows} rows`);
+          }
+          
+          main().catch(e => { console.error(e); process.exit(1); });
+          EOF
+          node backup.js
+
+      - name: Schema Dump (via Supabase CLI)
+        if: ${{ inputs.backup_type == 'schema' || inputs.backup_type == 'full' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} || true
+          supabase db dump --schema public -f backups/schema-$(date +%Y%m%d).sql || echo "Schema dump failed"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ inputs.backup_type }}-${{ github.run_number }}
+          path: backups/
+          retention-days: 30
