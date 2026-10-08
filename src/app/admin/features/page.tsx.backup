@@ -1,0 +1,186 @@
+import type { Metadata } from "next";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { SITE_FEATURES, type SiteFeatures } from "@/config/features";
+import { toggleFeatureAction } from "@/lib/server/admin-actions";
+
+export const metadata: Metadata = {
+  title: "مدیریت بخش‌های سایت",
+};
+
+/**
+ * Admin Features Page
+ * Allows admin to enable/disable different sections of the site.
+ */
+export default async function AdminFeaturesPage() {
+  const features = SITE_FEATURES;
+
+  // Group features by category for better display
+  const featureGroups = [
+    {
+      title: "محصولات",
+      key: "products",
+      items: features.products,
+    },
+    {
+      title: "دسته‌بندی‌ها",
+      key: "categories",
+      items: features.categories,
+    },
+    {
+      title: "سبد خرید",
+      key: "cart",
+      items: features.cart,
+    },
+    {
+      title: "تسویه حساب",
+      key: "checkout",
+      items: features.checkout,
+    },
+    {
+      title: "حساب کاربری",
+      key: "account",
+      items: features.account,
+    },
+    {
+      title: "ناوبری",
+      key: "navigation",
+      items: features.navigation,
+    },
+    {
+      title: "سئو",
+      key: "seo",
+      items: features.seo,
+    },
+    // NEW: Social Media & Contact Channels
+    {
+      title: "شبکه‌های اجتماعی",
+      key: "social",
+      items: features.social,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-h2 font-semibold text-text-primary">
+          مدیریت بخش‌های سایت
+        </h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.location.reload()}
+        >
+          🔄 بازنشانی
+        </Button>
+      </div>
+
+      <p className="text-body-sm text-text-secondary">
+        بخش‌های مختلف سایت را فعال یا غیرفعال کنید. تغییرات به‌صورت خودکار ذخیره می‌شوند.
+      </p>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {featureGroups.map((group) => {
+          const groupKeys = Object.keys(group.items) as (keyof typeof group.items)[];
+          const allEnabled = groupKeys.every((key) => group.items[key].enabled);
+          
+          return (
+            <Card key={group.key} className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-h4 font-semibold text-text-primary">
+                  {group.title}
+                </h3>
+                <Badge variant={allEnabled ? "success" : "muted"}>
+                  {allEnabled ? "همه فعال" : "برخی غیرفعال"}
+                </Badge>
+              </div>
+              
+              <div className="space-y-2">
+                {groupKeys.map((key) => {
+                  const item = group.items[key];
+                  const label = key
+                    .replace(/([A-Z])/g, " $1")
+                    .replace(/^./, (str) => str.toUpperCase())
+                    .replace(/([a-z])([A-Z])/g, "$1 $2");
+                  
+                  // Convert camelCase to Persian label
+                  const persianLabels: Record<string, string> = {
+                    search: "جستجو",
+                    searchSuggestions: "پیشنهادات جستجو",
+                    savedFilters: "فیلترهای ذخیره شده",
+                    filters: "فیلترها",
+                    sorting: "مرتب‌سازی",
+                    relatedProducts: "محصولات مرتبط",
+                    recentlyViewed: "اخیراً دیده شده",
+                    compare: "مقایسه",
+                    faq: "سوالات متداول",
+                    quantitySelector: "انتخاب تعداد",
+                    addToCart: "افزودن به سبد خرید",
+                    metadata: "متادیتا",
+                    structuredData: "داده‌های ساختاریافته",
+                    listing: "لیست دسته‌بندی‌ها",
+                    productGrid: "گرید محصولات",
+                    checkoutEntry: "ورود به تسویه",
+                    quantityHardening: "مدیریت تعداد",
+                    clearAction: "خالی کردن سبد",
+                    customerForm: "فرم مشتری",
+                    addressForm: "فرم آدرس",
+                    shippingOptions: "گزینه‌های ارسال",
+                    paymentMethods: "روش‌های پرداخت",
+                    reviewConfirmation: "بررسی و تأیید",
+                    dashboard: "داشبورد",
+                    profile: "پروفایل",
+                    orders: "سفارشات",
+                    addresses: "آدرس‌ها",
+                    authentication: "احراز هویت",
+                    headerCart: "سبد خرید در هدر",
+                    headerSearch: "جستجو در هدر",
+                    headerAccount: "حساب کاربری در هدر",
+                    footerLinks: "لینک‌های فوتر",
+                    sitemap: "نقشه سایت",
+                    robots: "ربات‌ها",
+                    // NEW: Social labels
+                    instagram: "اینستاگرام",
+                    whatsapp: "واتساپ",
+                    telegram: "تلگرام",
+                    bale: "بله",
+                  };
+
+                  const persianLabel = persianLabels[key] || label;
+
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 transition-colors hover:bg-muted/50"
+                    >
+                      <span className="text-sm text-text-secondary">
+                        {persianLabel}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={item.enabled ? "success" : "muted"}>
+                          {item.enabled ? "فعال" : "غیرفعال"}
+                        </Badge>
+                        <form action={toggleFeatureAction}>
+                          <input type="hidden" name="featureKey" value={`${group.key}.${key}`} />
+                          <input type="hidden" name="enabled" value={String(!item.enabled)} />
+                          <Button
+                            type="submit"
+                            variant={item.enabled ? "outline" : "primary"}
+                            size="sm"
+                          >
+                            {item.enabled ? "غیرفعال کردن" : "فعال کردن"}
+                          </Button>
+                        </form>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

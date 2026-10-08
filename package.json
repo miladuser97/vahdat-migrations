@@ -1,0 +1,63 @@
+{
+  "name": "vahdatqazvin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "فروشگاه اینترنتی موبایل وحدت — تخصصی در فروش گوشی موبایل، لوازم جانبی، ساعت هوشمند و تجهیزات دیجیتال",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@supabase/supabase-js": "^2.45.0",
+    "bcryptjs": "^3.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^13.2.0",
+    "lucide-react": "^1.46.0",
+    "next": "^15.0.0",
+    "pg": "^8.7.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.7.0",
+    "yet-another-react-lightbox": "^3.32.2",
+    "zod": "^4.4.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.0.0",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.4.0",
+    "prettier": "^3.3.0",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^3.4.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.0",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.10"
+  }
+}

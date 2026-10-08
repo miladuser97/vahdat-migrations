@@ -1,0 +1,599 @@
+// ============================================================
+// Prisma Schema — موبایل وحدت
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum ProductCondition {
+  NEW
+  USED_LIKE_NEW
+  USED_GOOD
+  USED_FAIR
+  REFURBISHED
+}
+
+enum HomeSectionType {
+  FEATURED
+  BEST_SELLER
+  NEWEST
+  DISCOUNTED
+  TECHNO_TIME
+  USED_PRODUCTS
+  BRANDS
+}
+
+// ============================================================
+// ✅ Media Library Enums
+// ============================================================
+
+enum MediaSource {
+  MANUAL_UPLOAD
+  ICECAT
+  PIXABAY
+  OPENVERSE
+  PEXELS
+  UNSPLASH
+  SUPPLIER
+  OTHER
+}
+
+enum MediaStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MediaRole {
+  PRIMARY
+  GALLERY
+  THUMBNAIL
+  COLOR_VARIANT
+  DETAIL
+  LIFESTYLE
+  PACKAGING
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id             String    @id @default(uuid())
+  firstName      String
+  lastName       String
+  mobileNumber   String    @unique
+  email          String?   @unique
+  password       String
+  role           String    @default("customer")
+  loginAttempts  Int       @default(0)
+  lockoutUntil   DateTime?
+  loyaltyPoints  Int       @default(0)
+  financialTestPassed Boolean @default(false)
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  addresses     Address[]
+  orders        Order[]
+  sessions      Session[]
+  reviews       Review[]
+  notifications Notification[]
+  wishlist      Wishlist[]
+  compare       Compare[]
+
+  @@index([mobileNumber])
+  @@index([role])
+  @@index([isActive])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Address {
+  id                    String   @id @default(uuid())
+  title                 String
+  province              String
+  city                  String
+  streetAddress         String
+  postalCode            String?
+  additionalDescription String?
+  isDefault             Boolean  @default(false)
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================
+// CATALOG
+// ============================================================
+
+model Category {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String?
+  icon        String?
+  color       String?
+  parentId    String?
+  order       Int      @default(0)
+  visible     Boolean  @default(true)
+  showInSlider Boolean @default(true)
+  image       String?
+  seo         Json?    @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([visible])
+}
+
+model Brand {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  logo        String?
+  website     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products Product[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  title            String
+  shortDescription String?
+  description      String?
+  sku              String?  @unique
+
+  brandId          String?
+  brand            Brand?   @relation(fields: [brandId], references: [id])
+
+  categorySlug     String?
+  price            Decimal  @db.Decimal(12, 2)
+  currency         String   @default("تومان")
+
+  discountPrice    Decimal? @db.Decimal(12, 2)
+  discountEndsAt   DateTime?
+
+  isNew            Boolean  @default(false)
+  isBestSeller     Boolean  @default(false)
+  isFastShipping   Boolean  @default(false)
+  isTechnoTime     Boolean  @default(false)
+  technoTimeEndsAt DateTime?
+
+  isUsed           Boolean  @default(false)
+  usedCondition    ProductCondition @default(NEW)
+  usedDescription  String?
+
+  inventoryCount   Int      @default(0)
+  isEnabled        Boolean  @default(true)
+
+  warranty         String?
+  isOriginal       Boolean  @default(true)
+
+  attributes       Json?    @default("{}")
+  images           Json?    @default("[]")
+  seo              Json?    @default("{}")
+
+  seoTitle         String?
+  seoDescription   String?
+
+  rating           Float?   @default(0)
+  reviewCount      Int      @default(0)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  orderItems OrderItem[]
+  reviews    Review[]
+  variants   ProductVariant[]
+  wishlist   Wishlist[]
+  compare    Compare[]
+
+  // ✅ Media Library relations
+  media           ProductMedia[]
+  mediaCandidates MediaCandidate[]
+
+  @@index([categorySlug])
+  @@index([isEnabled])
+  @@index([brandId])
+  @@index([price])
+  @@index([isNew])
+  @@index([isBestSeller])
+  @@index([isUsed])
+  @@index([isTechnoTime])
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String   @unique
+  price          Decimal  @db.Decimal(12, 2)
+  inventoryCount Int      @default(0)
+  attributes     Json     @default("{}")
+  isEnabled      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([productId])
+  @@index([sku])
+}
+
+// ============================================================
+// WISHLIST & COMPARE
+// ============================================================
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Compare {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+// ============================================================
+// HOME SECTIONS & TRUST BADGES
+// ============================================================
+
+model HomeSection {
+  id          String          @id @default(uuid())
+  type        HomeSectionType
+  title       String
+  subtitle    String?
+  order       Int             @default(0)
+  isActive    Boolean         @default(true)
+  productIds  String[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@index([order])
+}
+
+model TrustBadge {
+  id        String   @id @default(uuid())
+  title     String
+  icon      String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([isActive])
+  @@index([order])
+}
+
+// ============================================================
+// SITE SETTINGS
+// ============================================================
+
+model SiteSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ============================================================
+// ORDER & PAYMENT
+// ============================================================
+
+model Order {
+  id                  String      @id @default(uuid())
+  orderNumber         Int         @unique @default(autoincrement())
+  userId              String?
+  user                User?       @relation(fields: [userId], references: [id])
+  status              String      @default("draft")
+  totalAmount         Decimal     @db.Decimal(12, 2)
+  currency            String      @default("تومان")
+
+  couponCode          String?
+  couponDiscount      Decimal?    @db.Decimal(12, 2)
+  loyaltyDiscount     Decimal?    @db.Decimal(12, 2)
+  installmentPlan     String?
+
+  customerInformation String
+  address             String
+  items               OrderItem[]
+  paymentInfo         String?
+  paymentAuthority    String?     @unique
+  idempotencyKey      String?     @unique
+  guestToken          String?     @unique
+  trackingCode        String?     @unique
+
+  shippingMethod      String?
+  shippingCost        Decimal?    @db.Decimal(12, 2)
+  trackingNumber      String?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+
+  paymentAttempts     PaymentAttempt[]
+
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([trackingCode])
+}
+
+model PaymentAttempt {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  provider      String
+  transactionId String?  @unique
+  status        String   @default("pending")
+  amount        Decimal  @db.Decimal(12, 2)
+  authority     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  title     String
+  price     Decimal @db.Decimal(12, 2)
+  quantity  Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ============================================================
+// REVIEWS
+// ============================================================
+
+model Review {
+  id              String   @id @default(uuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  rating          Int      @default(5)
+  title           String?
+  content         String?
+  isApproved      Boolean  @default(false)
+  adminReply      String?
+  adminReplyAt    DateTime?
+  adminReplyById  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@index([userId])
+  @@index([isApproved])
+  @@index([adminReplyById])
+}
+
+// ============================================================
+// COUPON
+// ============================================================
+
+model Coupon {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  description     String?
+  discountType    String   @default("percentage")
+  discountValue   Decimal  @db.Decimal(12, 2)
+  minimumOrder    Decimal? @db.Decimal(12, 2)
+  maxDiscount     Decimal? @db.Decimal(12, 2)
+  usageLimit      Int?
+  usedCount       Int      @default(0)
+  perUserLimit    Int?
+  expiresAt       DateTime?
+  isActive        Boolean  @default(true)
+  isAutoApplied   Boolean  @default(false)
+  applicableCategoryIds String[]
+  applicableBrandIds    String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  channel   String
+  subject   String?
+  content   String
+  status    String    @default("pending")
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================
+// REPAIR REQUEST
+// ============================================================
+
+model RepairRequest {
+  id            String   @id @default(uuid())
+  trackingCode  String   @unique
+  firstName     String
+  lastName      String
+  mobileNumber  String
+  email         String?
+  brand         String
+  model         String
+  problemType   String
+  description   String
+  address       String?
+  status        String   @default("pending")
+  estimatedCost Decimal? @db.Decimal(12, 2)
+  adminNote     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([trackingCode])
+  @@index([mobileNumber])
+  @@index([status])
+}
+
+// ============================================================
+// ✅ MEDIA LIBRARY
+// ============================================================
+
+// ----------------------------------------------
+// MediaAsset — عکس واقعی توی آرشیو
+// ----------------------------------------------
+model MediaAsset {
+  id              String      @id @default(uuid())
+  url             String
+  storagePath     String
+  filename        String
+  mimeType        String
+  size            Int
+  width           Int?
+  height          Int?
+  checksum        String?     @unique
+  altText         String?
+  title           String?
+  source          MediaSource @default(MANUAL_UPLOAD)
+  sourceRef       String?
+  licenseType     String?
+  licenseUrl      String?
+  attribution     String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  productLinks ProductMedia[]
+
+  @@index([source])
+  @@index([sourceRef])
+  @@index([checksum])
+  @@index([createdAt])
+}
+
+// ----------------------------------------------
+// ProductMedia — اتصال عکس به محصول
+// ----------------------------------------------
+model ProductMedia {
+  id           String      @id @default(uuid())
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaId      String
+  media        MediaAsset  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  displayOrder Int         @default(0)
+  isPrimary    Boolean     @default(false)
+  role         MediaRole   @default(GALLERY)
+  status       MediaStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@unique([productId, mediaId])
+  @@index([productId, status])
+  @@index([mediaId])
+  @@index([productId, displayOrder])
+}
+
+// ----------------------------------------------
+// MediaCandidate — عکس پیشنهادی (منتظر تایید)
+// ----------------------------------------------
+model MediaCandidate {
+  id             String        @id @default(uuid())
+  productId      String
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source         MediaSource
+  sourceId       String?
+  sourceUrl      String
+  previewUrl     String
+  downloadUrl    String?
+  title          String?
+  creator        String?
+  licenseType    String?
+  licenseUrl     String?
+  attribution    String?
+  width          Int?
+  height         Int?
+  relevanceScore Float?
+  status         MediaStatus   @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectReason   String?
+  createdAt      DateTime      @default(now())
+
+  @@index([productId, status])
+  @@index([source])
+  @@index([status])
+  @@index([createdAt])
+}
