@@ -9,6 +9,9 @@
 //      - یا transaction با isolation level SERIALIZABLE
 //      - یا INSERT ... ON CONFLICT DO NOTHING
 //    فعلاً به‌عنوان known limitation پذیرفته شده.
+//
+// ⚠️ نکته Prisma: فیلد metadata (Json با @default) تو create input نیست.
+//    راه‌حل: بعد از create، با update ست می‌شه.
 
 import "server-only";
 
@@ -158,7 +161,7 @@ export async function createCandidate(
     };
   }
 
-  // ۳. Create
+  // ۳. Create (بدون metadata — چون Prisma تو create نمی‌ذاره)
   const createData: Prisma.MediaCandidateUncheckedCreateInput = {
     productId: input.productId,
     source: input.source,
@@ -174,7 +177,6 @@ export async function createCandidate(
     width: input.width ?? null,
     height: input.height ?? null,
     relevanceScore: input.relevanceScore ?? null,
-    metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
     status: "PENDING",
   };
 
@@ -190,6 +192,25 @@ export async function createCandidate(
       createdAt: true,
     },
   });
+
+  // ۴. ست کردن metadata (چون تو create قابل set نیست)
+  if (input.metadata !== undefined) {
+    try {
+      await prisma.mediaCandidate.update({
+        where: { id: created.id },
+        data: { metadata: input.metadata as Prisma.InputJsonValue },
+      });
+    } catch (metadataError) {
+      logger.warn("[Candidate] metadata update failed", {
+        candidateId: created.id,
+        error:
+          metadataError instanceof Error
+            ? metadataError.message
+            : String(metadataError),
+      });
+      // create موفق بود، فقط metadata ست نشد — ادامه می‌دیم
+    }
+  }
 
   logger.info("[Candidate] Created", {
     candidateId: created.id,
