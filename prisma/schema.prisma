@@ -244,16 +244,30 @@ model ProductVariant {
   id             String   @id @default(uuid())
   productId      String
   product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  slug           String
   sku            String   @unique
+  color          String?
+  colorHex       String?
+  storage        String?
+  ram            String?
+
   price          Decimal  @db.Decimal(12, 2)
   inventoryCount Int      @default(0)
   attributes     Json     @default("{}")
+
   isEnabled      Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  displayOrder   Int      @default(0)
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  media          ProductMedia[]
+
+  @@unique([productId, slug])
   @@index([productId])
-  @@index([sku])
+  @@index([productId, isEnabled])
 }
 
 // ============================================================
@@ -525,6 +539,7 @@ model MediaAsset {
   width           Int?
   height          Int?
   checksum        String?     @unique
+  perceptualHash  String?
   altText         String?
   title           String?
   source          MediaSource @default(MANUAL_UPLOAD)
@@ -547,23 +562,29 @@ model MediaAsset {
 // ProductMedia — اتصال عکس به محصول
 // ----------------------------------------------
 model ProductMedia {
-  id           String      @id @default(uuid())
+  id           String          @id @default(uuid())
   productId    String
-  product      Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
   mediaId      String
-  media        MediaAsset  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
-  displayOrder Int         @default(0)
-  isPrimary    Boolean     @default(false)
-  role         MediaRole   @default(GALLERY)
-  status       MediaStatus @default(PENDING)
+  media        MediaAsset      @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  displayOrder Int             @default(0)
+  isPrimary    Boolean         @default(false)
+  role         MediaRole       @default(GALLERY)
+  status       MediaStatus     @default(PENDING)
   approvedById String?
   approvedAt   DateTime?
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime        @default(now())
 
   @@unique([productId, mediaId])
   @@index([productId, status])
   @@index([mediaId])
   @@index([productId, displayOrder])
+  @@index([variantId])
 }
 
 // ----------------------------------------------
@@ -586,6 +607,7 @@ model MediaCandidate {
   width          Int?
   height         Int?
   relevanceScore Float?
+  metadata       Json          @default("{}")
   status         MediaStatus   @default(PENDING)
   reviewedById   String?
   reviewedAt     DateTime?
