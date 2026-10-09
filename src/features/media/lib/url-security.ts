@@ -84,6 +84,13 @@ export interface UrlValidationResult {
 }
 
 // ============================================================
+// Helper: حذف براکت‌های IPv6
+// ============================================================
+function stripIpv6Brackets(hostname: string): string {
+  return hostname.replace(/^\[|\]$/g, "");
+}
+
+// ============================================================
 // Convert IPv4 string to number
 // ============================================================
 function ipv4ToNumber(ip: string): number | null {
@@ -126,9 +133,6 @@ function isPrivateIPv6(ip: string): boolean {
     return isPrivateIPv4(ipv4MappedMatch[1]);
   }
 
-  // IPv4-mapped (hex): ::ffff:xxxx:xxxx
-  // Rare, skip for now
-
   for (const prefix of PRIVATE_IPV6_PREFIXES) {
     if (lower === prefix || lower.startsWith(prefix)) {
       // ::ffff: needs special care — already handled
@@ -144,9 +148,10 @@ function isPrivateIPv6(ip: string): boolean {
 // Check if IP (v4 or v6) is private/reserved
 // ============================================================
 export function isPrivateIp(ip: string): boolean {
-  const version = isIP(ip);
-  if (version === 4) return isPrivateIPv4(ip);
-  if (version === 6) return isPrivateIPv6(ip);
+  const clean = stripIpv6Brackets(ip);
+  const version = isIP(clean);
+  if (version === 4) return isPrivateIPv4(clean);
+  if (version === 6) return isPrivateIPv6(clean);
   return true; // unknown → block
 }
 
@@ -186,9 +191,12 @@ export function validateUrlStructure(rawUrl: string): UrlValidationResult {
     return { valid: false, reason: `BLOCKED_HOSTNAME: ${hostname}` };
   }
 
+  // ⚠️ new URL() براکت‌ها رو تو hostname نگه می‌داره برای IPv6
+  const cleanHostname = stripIpv6Brackets(hostname);
+
   // اگه hostname یه IP literal بود، مستقیم چک کن
-  if (isIP(hostname) !== 0) {
-    if (isPrivateIp(hostname)) {
+  if (isIP(cleanHostname) !== 0) {
+    if (isPrivateIp(cleanHostname)) {
       return { valid: false, reason: `PRIVATE_IP_LITERAL: ${hostname}` };
     }
   }
@@ -211,16 +219,17 @@ export async function validateUrlForDownload(
 
   const parsed = structureResult.parsedUrl;
   const hostname = parsed.hostname.toLowerCase();
+  const cleanHostname = stripIpv6Brackets(hostname);
 
   // ۲. اگه IP literal بود، چک بالا کافیه
-  if (isIP(hostname) !== 0) {
-    return { valid: true, parsedUrl: parsed, resolvedIps: [hostname] };
+  if (isIP(cleanHostname) !== 0) {
+    return { valid: true, parsedUrl: parsed, resolvedIps: [cleanHostname] };
   }
 
   // ۳. DNS resolve
   let ips: string[] = [];
   try {
-    const result = await dns.lookup(hostname, { all: true });
+    const result = await dns.lookup(cleanHostname, { all: true });
     ips = result.map((r) => r.address);
   } catch {
     return { valid: false, reason: `DNS_RESOLVE_FAILED: ${hostname}` };
