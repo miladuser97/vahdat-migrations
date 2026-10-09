@@ -101,7 +101,6 @@ function validateInput(input: CreateCandidateInput): string | null {
     return "downloadUrl بیش از حد طولانی است";
   }
   if (input.metadata !== undefined) {
-    // چک: metadata باید قابل JSON.stringify باشه
     try {
       JSON.stringify(input.metadata);
     } catch {
@@ -160,25 +159,27 @@ export async function createCandidate(
   }
 
   // ۳. Create
+  const createData: Prisma.MediaCandidateCreateInput = {
+    product: { connect: { id: input.productId } },
+    source: input.source,
+    sourceId: input.sourceId ?? null,
+    sourceUrl: input.sourceUrl,
+    previewUrl: input.previewUrl,
+    downloadUrl: input.downloadUrl ?? null,
+    title: input.title ?? null,
+    creator: input.creator ?? null,
+    licenseType: input.licenseType ?? null,
+    licenseUrl: input.licenseUrl ?? null,
+    attribution: input.attribution ?? null,
+    width: input.width ?? null,
+    height: input.height ?? null,
+    relevanceScore: input.relevanceScore ?? null,
+    metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+    status: "PENDING",
+  };
+
   const created = await prisma.mediaCandidate.create({
-    data: {
-      productId: input.productId,
-      source: input.source,
-      sourceId: input.sourceId ?? null,
-      sourceUrl: input.sourceUrl,
-      previewUrl: input.previewUrl,
-      downloadUrl: input.downloadUrl ?? null,
-      title: input.title ?? null,
-      creator: input.creator ?? null,
-      licenseType: input.licenseType ?? null,
-      licenseUrl: input.licenseUrl ?? null,
-      attribution: input.attribution ?? null,
-      width: input.width ?? null,
-      height: input.height ?? null,
-      relevanceScore: input.relevanceScore ?? null,
-      metadata: input.metadata ?? {},
-      status: "PENDING",
-    },
+    data: createData,
     select: {
       id: true,
       productId: true,
@@ -251,7 +252,7 @@ export function toCreateCandidateInput(
   productId: string
 ): CreateCandidateInput {
   // ساخت metadata امن (قابل JSON.stringify)
-  const metadata: Prisma.InputJsonObject = {
+  const metadataBase: Record<string, Prisma.InputJsonValue> = {
     provider: result.providerSlug,
     providerName: result.providerName,
   };
@@ -261,7 +262,7 @@ export function toCreateCandidateInput(
     try {
       const serialized = JSON.stringify(result.raw);
       if (serialized.length < 5000) {
-        metadata.raw = result.raw as Prisma.InputJsonValue;
+        metadataBase.raw = result.raw as Prisma.InputJsonValue;
       }
     } catch {
       // اگه سریالایز نشد، نادیده بگیر
@@ -283,7 +284,7 @@ export function toCreateCandidateInput(
     width: result.width,
     height: result.height,
     relevanceScore: result.relevanceHint,
-    metadata,
+    metadata: metadataBase,
   };
 }
 

@@ -85,23 +85,17 @@ function validateUrl(rawUrl: string): UrlValidationResult {
  * فقط IPv4 ساده رو چک می‌کنه — کافیه برای Stage 2
  */
 function isPrivateIp(hostname: string): boolean {
-  // IPv4 ساده
   const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
   const match = hostname.match(ipv4Regex);
   if (!match) return false;
 
-  const parts = match.slice(1).map((p) => parseInt(p, 10));
-  const [a, b] = parts;
+  const a = parseInt(match[1] ?? "0", 10);
+  const b = parseInt(match[2] ?? "0", 10);
 
-  // 10.0.0.0/8
   if (a === 10) return true;
-  // 172.16.0.0/12
   if (a === 172 && b >= 16 && b <= 31) return true;
-  // 192.168.0.0/16
   if (a === 192 && b === 168) return true;
-  // 127.0.0.0/8
   if (a === 127) return true;
-  // 169.254.0.0/16 (link-local)
   if (a === 169 && b === 254) return true;
 
   return false;
