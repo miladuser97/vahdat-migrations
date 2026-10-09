@@ -1,0 +1,33 @@
+name: Test Stage 3B Security
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Remove old lockfile
+        run: rm -f package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript check (media only)
+        run: npx tsc -p tsconfig.media.json --noEmit
+
+      - name: Run security tests
+        run: npx tsx scripts/media/test-stage-3b-security.ts
