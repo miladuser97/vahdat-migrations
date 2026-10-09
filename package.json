@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "فروشگاه اینترنتی موبایل وحدت — تخصصی در فروش گوشی موبایل، لوازم جانبی، ساعت هوشمند و تجهیزات دیجیتال",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -33,6 +36,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "0.0.1",
+    "sharp": "^0.33.5",
     "tailwind-merge": "^3.7.0",
     "yet-another-react-lightbox": "^3.32.2",
     "zod": "^4.4.3"

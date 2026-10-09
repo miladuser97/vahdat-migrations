@@ -1,29 +1,27 @@
 // src/features/media/lib/image-validator.ts
-// اعتبارسنجی تصویر بر اساس magic bytes + ابعاد + checksum
+// اعتبارسنجی تصویر با magic bytes + decode واقعی (sharp)
 //
-// ⚠️ این ماژول بدون dependency خارجی کار می‌کنه.
-// ⚠️ فقط برای فرمت‌های رایج: JPEG, PNG, WebP, GIF, AVIF
+// ⚠️ این ماژول Node 18+ (server-side) کار می‌کنه.
+// ⚠️ sharp روی Node 13.6 نصب نمی‌شه، ولی در CI (Node 22) کار می‌کنه.
 //
-// الزامات:
-//   - تشخیص نوع فایل از magic bytes (نه Content-Type)
-//   - محدودیت ابعاد (ضد decompression bomb)
-//   - checksum SHA-256
-//   - رد SVG, HTML, PDF, ...
-//
-// محدودیت شناخته‌شده:
-//   - این ماژول فقط header تصویر رو می‌خونه، نه decode کامل.
-//   - برای امنیت بیشتر، باید از sharp یا مشابه استفاده کنیم.
-//   - ولی sharp روی Node 13.6 نصب نمی‌شه.
-//   - در محیط CI (Node 22) ممکنه بعداً اضافه کنیم.
+// محافظت‌ها:
+//   - magic bytes (content-type اسپوف نکنه)
+//   - decode واقعی با sharp
+//   - محدودیت عرض، ارتفاع، پیکسل (ضد decompression bomb)
+//   - محدودیت حجم فایل
+//   - SHA-256 checksum
 
 import { createHash } from "crypto";
+import sharp from "sharp";
 
 // ============================================================
 // Constants
 // ============================================================
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
 const MAX_WIDTH = 8000;
 const MAX_HEIGHT = 8000;
-const MAX_PIXELS = 40_000_000; // 40 MP (ضد decompression bomb)
+const MAX_PIXELS = 40_000_000; // 40 MP
+const DECODE_TIMEOUT_MS = 5000;
 
 // ============================================================
 // Types
@@ -32,15 +30,15 @@ export type AllowedMimeType =
   | "image/jpeg"
   | "image/png"
   | "image/webp"
-  | "image/gif"
-  | "image/avif";
+  | "image/gif";
 
 export interface ImageValidationResult {
   valid: true;
   mimeType: AllowedMimeType;
   width: number;
   height: number;
-  checksum: string; // SHA-256
+  checksum: string;
+  size: number;
 }
 
 export interface ImageValidationError {
@@ -81,7 +79,7 @@ function detectMimeType(buffer: Buffer): AllowedMimeType | null {
     return "image/png";
   }
 
-  // GIF: 47 49 46 38 (GIF8)
+  // GIF: GIF8
   if (
     buffer.length >= 6 &&
     buffer[0] === 0x47 &&
@@ -95,188 +93,119 @@ function detectMimeType(buffer: Buffer): AllowedMimeType | null {
   // WebP: RIFF....WEBP
   if (
     buffer.length >= 12 &&
-    buffer[0] === 0x52 && // R
-    buffer[1] === 0x49 && // I
-    buffer[2] === 0x46 && // F
-    buffer[3] === 0x46 && // F
-    buffer[8] === 0x57 && // W
-    buffer[9] === 0x45 && // E
-    buffer[10] === 0x42 && // B
-    buffer[11] === 0x50 // P
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
   ) {
     return "image/webp";
   }
 
-  // AVIF: ....ftypavif
-  if (buffer.length >= 12) {
-    const ftypStr = buffer.slice(4, 8).toString("ascii");
-    if (ftypStr === "ftyp") {
-      const brandStr = buffer.slice(8, 12).toString("ascii");
-      if (brandStr === "avif" || brandStr === "avis") {
-        return "image/avif";
-      }
-    }
-  }
-
   return null;
 }
 
 // ============================================================
-// Dimension extraction
+// Decode با sharp (با timeout)
 // ============================================================
-interface Dimensions {
-  width: number;
-  height: number;
-}
+async function decodeImage(
+  buffer: Buffer
+): Promise<{ width: number; height: number } | null> {
+  try {
+    // timeout: sharp ممکنه روی فایل مخرب گیر کنه
+    const decodePromise = sharp(buffer, {
+      // محدودیت‌ها رو به sharp می‌دیم (fast-fail)
+      limitInputPixels: MAX_PIXELS,
+      // failOn: null for safety
+      failOn: "none",
+    }).metadata();
 
-function getPngDimensions(buffer: Buffer): Dimensions | null {
-  // PNG IHDR: بایت 16-23
-  if (buffer.length < 24) return null;
-  const width = buffer.readUInt32BE(16);
-  const height = buffer.readUInt32BE(20);
-  return { width, height };
-}
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), DECODE_TIMEOUT_MS);
+    });
 
-function getJpegDimensions(buffer: Buffer): Dimensions | null {
-  // JPEG: پیمایش markers
-  let offset = 2;
-  while (offset < buffer.length - 9) {
-    if (buffer[offset] !== 0xff) return null;
-    const marker = buffer[offset + 1];
-    if (!marker) return null;
+    const metadata = await Promise.race([decodePromise, timeoutPromise]);
+    if (!metadata) return null;
 
-    // SOF0-SOF15 (به‌جز DHT, DAC, RSTn)
-    if (
-      (marker >= 0xc0 && marker <= 0xc3) ||
-      (marker >= 0xc5 && marker <= 0xc7) ||
-      (marker >= 0xc9 && marker <= 0xcb) ||
-      (marker >= 0xcd && marker <= 0xcf)
-    ) {
-      const height = buffer.readUInt16BE(offset + 5);
-      const width = buffer.readUInt16BE(offset + 7);
-      return { width, height };
-    }
+    const width = metadata.width;
+    const height = metadata.height;
 
-    const length = buffer.readUInt16BE(offset + 2);
-    offset += 2 + length;
-  }
-  return null;
-}
+    if (!width || !height) return null;
 
-function getGifDimensions(buffer: Buffer): Dimensions | null {
-  // GIF: بایت 6-9 (little endian)
-  if (buffer.length < 10) return null;
-  const width = buffer.readUInt16LE(6);
-  const height = buffer.readUInt16LE(8);
-  return { width, height };
-}
+    // ⚠️ فقط metadata می‌خونیم. برای decode کامل payload،
+    // باید از toBuffer استفاده کنیم. ولی این کار CPU-intensive هست.
+    // برای امنیت بیشتر، حداقل یک decode سطحی انجام بدیم:
 
-function getWebpDimensions(buffer: Buffer): Dimensions | null {
-  // WebP: VP8/VP8L/VP8X
-  if (buffer.length < 30) return null;
+    // decode واقعی (small resize) برای تأیید محتوا
+    await sharp(buffer, {
+      limitInputPixels: MAX_PIXELS,
+      failOn: "none",
+    })
+      .resize(10, 10, { fit: "inside" })
+      .toBuffer();
 
-  const chunkType = buffer.slice(12, 16).toString("ascii");
-
-  if (chunkType === "VP8 ") {
-    // Lossy: bytes 26-29 (little endian, 14 bits each)
-    const width = buffer.readUInt16LE(26) & 0x3fff;
-    const height = buffer.readUInt16LE(28) & 0x3fff;
     return { width, height };
-  }
-
-  if (chunkType === "VP8L") {
-    // Lossless: bytes 21-24
-    const b0 = buffer[21] ?? 0;
-    const b1 = buffer[22] ?? 0;
-    const b2 = buffer[23] ?? 0;
-    const b3 = buffer[24] ?? 0;
-    const bits = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
-    const width = (bits & 0x3fff) + 1;
-    const height = ((bits >> 14) & 0x3fff) + 1;
-    return { width, height };
-  }
-
-  if (chunkType === "VP8X") {
-    // Extended: bytes 24-29
-    const width =
-      ((buffer[24] ?? 0) | ((buffer[25] ?? 0) << 8) | ((buffer[26] ?? 0) << 16)) + 1;
-    const height =
-      ((buffer[27] ?? 0) | ((buffer[28] ?? 0) << 8) | ((buffer[29] ?? 0) << 16)) + 1;
-    return { width, height };
-  }
-
-  return null;
-}
-
-function getDimensions(
-  buffer: Buffer,
-  mimeType: AllowedMimeType
-): Dimensions | null {
-  switch (mimeType) {
-    case "image/png":
-      return getPngDimensions(buffer);
-    case "image/jpeg":
-      return getJpegDimensions(buffer);
-    case "image/gif":
-      return getGifDimensions(buffer);
-    case "image/webp":
-      return getWebpDimensions(buffer);
-    case "image/avif":
-      // AVIF: پیچیده، فعلاً نادیده می‌گیریم (returns null)
-      return null;
+  } catch {
+    return null;
   }
 }
 
 // ============================================================
 // Main validation function
 // ============================================================
-export function validateImageBuffer(buffer: Buffer): ImageValidationOutcome {
-  // ۱. حداقل طول
+export async function validateImageBuffer(
+  buffer: Buffer
+): Promise<ImageValidationOutcome> {
+  // ۱. حجم
+  if (buffer.length === 0) {
+    return { valid: false, reason: "EMPTY_BUFFER" };
+  }
+  if (buffer.length > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      reason: `FILE_TOO_LARGE: ${buffer.length}`,
+    };
+  }
+
+  // ۲. حداقل طول
   if (buffer.length < 12) {
     return { valid: false, reason: "BUFFER_TOO_SMALL" };
   }
 
-  // ۲. Magic bytes
+  // ۳. Magic bytes
   const mimeType = detectMimeType(buffer);
   if (!mimeType) {
     return { valid: false, reason: "UNKNOWN_MIME_TYPE" };
   }
 
-  // ۳. Dimensions
-  const dimensions = getDimensions(buffer, mimeType);
-
-  // اگه نتونستیم dimensions رو بخونیم، رد نمی‌کنیم، ولی هشدار می‌دیم
-  // (چون بعضی فرمت‌ها مثل AVIF رو پشتیبانی نمی‌کنیم)
-  let width = 0;
-  let height = 0;
-
-  if (dimensions) {
-    width = dimensions.width;
-    height = dimensions.height;
-
-    // چک ابعاد
-    if (width <= 0 || height <= 0) {
-      return { valid: false, reason: "INVALID_DIMENSIONS" };
-    }
-
-    if (width > MAX_WIDTH || height > MAX_HEIGHT) {
-      return {
-        valid: false,
-        reason: `DIMENSIONS_TOO_LARGE: ${width}x${height}`,
-      };
-    }
-
-    // چک pixel count (ضد decompression bomb)
-    const pixels = width * height;
-    if (pixels > MAX_PIXELS) {
-      return {
-        valid: false,
-        reason: `TOO_MANY_PIXELS: ${pixels}`,
-      };
-    }
+  // ۴. Decode واقعی
+  const decoded = await decodeImage(buffer);
+  if (!decoded) {
+    return { valid: false, reason: "DECODE_FAILED" };
   }
 
-  // ۴. Checksum SHA-256
+  const { width, height } = decoded;
+
+  // ۵. ابعاد
+  if (width <= 0 || height <= 0) {
+    return { valid: false, reason: "INVALID_DIMENSIONS" };
+  }
+  if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+    return {
+      valid: false,
+      reason: `DIMENSIONS_TOO_LARGE: ${width}x${height}`,
+    };
+  }
+
+  const pixels = width * height;
+  if (pixels > MAX_PIXELS) {
+    return { valid: false, reason: `TOO_MANY_PIXELS: ${pixels}` };
+  }
+
+  // ۶. checksum
   const checksum = createHash("sha256").update(buffer).digest("hex");
 
   return {
@@ -285,5 +214,6 @@ export function validateImageBuffer(buffer: Buffer): ImageValidationOutcome {
     width,
     height,
     checksum,
+    size: buffer.length,
   };
 }
