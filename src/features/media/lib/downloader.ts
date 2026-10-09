@@ -16,7 +16,6 @@
 import http from "http";
 import https from "https";
 import { URL } from "url";
-import type { LookupFunction } from "net";
 import {
   validateUrlForDownload,
   sanitizeUrlForLog,
@@ -125,16 +124,19 @@ async function fetchWithIpPinning(
       : 80;
 
     // ⚠️ custom lookup: DNS رو نادیده می‌گیره، IP رو pin می‌کنه
-    const customLookup: LookupFunction = (
-      _hostname,
-      _options,
-      callback
-    ) => {
-      // callback signature: (err, address, family)
-      // ولی در برخی نسخه‌ها: (err, addresses[])
+    // Node type این callback رو متفاوت تعریف می‌کنه در نسخه‌های مختلف
+    const customLookup = (
+      _hostname: string,
+      _options: unknown,
+      callback: (
+        err: NodeJS.ErrnoException | null,
+        address: string | { address: string; family: number }[],
+        family?: number
+      ) => void
+    ): void => {
       if (typeof callback === "function") {
         const family = pinnedIp.includes(":") ? 6 : 4;
-        // @ts-expect-error — Node type تفاوت داره
+        // @ts-ignore — Node type در نسخه‌های مختلف متفاوته
         callback(null, pinnedIp, family);
       }
     };
@@ -144,7 +146,7 @@ async function fetchWithIpPinning(
       port,
       path: parsed.pathname + parsed.search,
       method: "GET",
-      lookup: customLookup,
+      lookup: customLookup as unknown as https.RequestOptions["lookup"],
       headers: {
         Host: parsed.hostname,
         "User-Agent": USER_AGENT,
@@ -331,10 +333,8 @@ export async function safeDownload(
 
       // ۶. Content-Type?
       const contentType = fetchResult.headers["content-type"] ?? "";
-      const baseContentType = String(contentType)
-        .split(";")[0]
-        ?.trim()
-        .toLowerCase() ?? "";
+      const baseContentType =
+        String(contentType).split(";")[0]?.trim().toLowerCase() ?? "";
 
       if (!ALLOWED_CONTENT_TYPES.includes(baseContentType)) {
         return {
