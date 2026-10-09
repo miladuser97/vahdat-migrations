@@ -23,83 +23,167 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --legacy-peer-deps
 
-      - name: Prisma versions
+      # ============================================================
+      # ۱. نسخه‌ها
+      # ============================================================
+      - name: Report versions
         run: |
-          echo "=== Prisma CLI version ==="
+          echo "═══════════════════════════════════"
+          echo " ۱. نسخه‌ها"
+          echo "═══════════════════════════════════"
+          echo "--- Prisma CLI ---"
           npx prisma --version
           echo ""
-          echo "=== @prisma/client version ==="
-          cat node_modules/@prisma/client/package.json | grep '"version"'
+          echo "--- @prisma/client ---"
+          cat node_modules/@prisma/client/package.json | grep -E '"version"|"name"' | head -5
+          echo ""
+          echo "--- prisma (devDep) ---"
+          cat node_modules/prisma/package.json | grep -E '"version"' | head -3
 
+      # ============================================================
+      # ۲. schema generator و مدل MediaCandidate
+      # ============================================================
+      - name: Report schema generator and model
+        run: |
+          echo "═══════════════════════════════════"
+          echo " ۲. schema generator"
+          echo "═══════════════════════════════════"
+          echo "--- generator client block ---"
+          head -20 prisma/schema.prisma
+          
+          echo ""
+          echo "═══════════════════════════════════"
+          echo " ۳. مدل MediaCandidate"
+          echo "═══════════════════════════════════"
+          grep -A 30 "^model MediaCandidate" prisma/schema.prisma
+          
+          echo ""
+          echo "═══════════════════════════════════"
+          echo " ۴. جستجوی فایل‌های schema"
+          echo "═══════════════════════════════════"
+          find . -name "schema.prisma" -not -path "*/node_modules/*"
+          
+          echo ""
+          echo "═══════════════════════════════════"
+          echo " ۵. Prisma config در package.json"
+          echo "═══════════════════════════════════"
+          cat package.json | grep -A 5 '"prisma"'
+
+      # ============================================================
+      # ۶. Generate + بررسی
+      # ============================================================
       - name: Generate Prisma Client
-        run: npx prisma generate
-
-      - name: Show generated types location
         run: |
-          echo "=== Generated files location ==="
-          ls -la node_modules/.prisma/client/ 2>/dev/null || echo ".prisma/client not found"
+          echo "═══════════════════════════════════"
+          echo " Generate with explicit schema"
+          echo "═══════════════════════════════════"
+          npx prisma generate --schema=prisma/schema.prisma 2>&1
+
+      - name: Show generated files
+        run: |
+          echo "═══════════════════════════════════"
+          echo " ۶. مسیر فایل‌های تولیدشده"
+          echo "═══════════════════════════════════"
+          find node_modules/.prisma -name "*.d.ts" -o -name "*.js" | head -20
+          
           echo ""
-          echo "=== Find types in generated client ==="
-          find node_modules/.prisma/client -name "*.d.ts" | head -20
+          echo "═══════════════════════════════════"
+          echo " ۷. MediaCandidateCreateInput (کل تعریف)"
+          echo "═══════════════════════════════════"
+          grep -A 60 "export type MediaCandidateCreateInput = {" node_modules/.prisma/client/index.d.ts | head -70
 
-      - name: Search for metadata in generated types
+      # ============================================================
+      # ۷. تست دقیق TypeScript
+      # ============================================================
+      - name: Detailed TypeScript test
         run: |
-          echo "=== Searching for 'metadata' in generated types ==="
-          grep -rn "metadata" node_modules/.prisma/client/*.d.ts | head -30 || echo "metadata NOT found"
-          echo ""
-          echo "=== MediaCandidateCreateInput ==="
-          grep -A 30 "MediaCandidateCreateInput" node_modules/.prisma/client/index.d.ts | head -60 || echo "not found"
-
-      - name: TypeScript minimal test
-        run: |
-          cat > test-prisma-types.ts << 'EOF'
+          cat > /tmp/test-prisma.ts << 'EOF'
           import { Prisma } from "@prisma/client";
 
-          // Test 1: metadata in CreateInput
-          const test1: Prisma.MediaCandidateCreateInput = {
-            product: { connect: { id: "test" } },
-            sourceUrl: "https://test.com",
-            previewUrl: "https://test.com",
+          // ═══ Test 1: MediaCandidateCreateInput ═══
+          const t1: Prisma.MediaCandidateCreateInput = {
+            product: { connect: { id: "t" } },
+            sourceUrl: "https://t.com",
+            previewUrl: "https://t.com",
+            source: "OTHER",
+          };
+          console.log("t1 (create) without metadata: OK");
+
+          // ═══ Test 2: metadata attempt ═══
+          const t2: Prisma.MediaCandidateCreateInput = {
+            product: { connect: { id: "t" } },
+            sourceUrl: "https://t.com",
+            previewUrl: "https://t.com",
             source: "OTHER",
             metadata: { test: true },
-          };
+          } as any;
+          console.log("t2 (create with metadata via as any): OK");
 
-          // Test 2: metadata in UncheckedCreateInput
-          const test2: Prisma.MediaCandidateUncheckedCreateInput = {
-            productId: "test",
-            sourceUrl: "https://test.com",
-            previewUrl: "https://test.com",
+          // ═══ Test 3: UncheckedCreateInput ═══
+          const t3: Prisma.MediaCandidateUncheckedCreateInput = {
+            productId: "t",
+            sourceUrl: "https://t.com",
+            previewUrl: "https://t.com",
             source: "OTHER",
-            metadata: { test: true },
           };
+          console.log("t3 (unchecked create) without metadata: OK");
 
-          console.log("test1:", test1);
-          console.log("test2:", test2);
+          // ═══ Test 4: UpdateInput ═══
+          const t4: Prisma.MediaCandidateUpdateInput = {
+            title: "test",
+          };
+          console.log("t4 (update) basic: OK");
+
+          // ═══ Test 5: Which fields exist? ═══
+          type CreateInputKeys = keyof Prisma.MediaCandidateCreateInput;
+          type UncheckedCreateKeys = keyof Prisma.MediaCandidateUncheckedCreateInput;
+          type UpdateInputKeys = keyof Prisma.MediaCandidateUpdateInput;
+
+          // @ts-expect-error — metadata does not exist in CreateInput
+          type _m1 = "metadata" extends CreateInputKeys ? true : false;
+
+          // @ts-expect-error — metadata does not exist in UncheckedCreateInput
+          type _m2 = "metadata" extends UncheckedCreateKeys ? true : false;
           EOF
           
-          echo "=== Running TypeScript check on test file ==="
-          npx tsc --noEmit test-prisma-types.ts 2>&1 || echo "TS check failed — expected"
+          echo "═══════════════════════════════════"
+          echo " Running tsc on test file"
+          echo "═══════════════════════════════════"
+          npx tsc --noEmit /tmp/test-prisma.ts 2>&1 | head -60 || true
 
-      - name: Show TypeScript errors in detail
-        if: always()
+      # ============================================================
+      # ۸. جستجوی metadata در کل Client
+      # ============================================================
+      - name: Grep metadata everywhere
         run: |
-          echo "=== Detailed TypeScript output ==="
-          npx tsc --noEmit test-prisma-types.ts 2>&1 || true
+          echo "═══════════════════════════════════"
+          echo " ۸. جستجوی 'metadata' در Client تولیدشده"
+          echo "═══════════════════════════════════"
+          grep -c "metadata" node_modules/.prisma/client/index.d.ts || echo "0"
+          
+          echo ""
+          echo "--- همه خطوطی که metadata دارن (اول ۵۰) ---"
+          grep -n "metadata" node_modules/.prisma/client/index.d.ts | head -50
 
-      - name: Save report
-        if: always()
+      # ============================================================
+      # ۹. جستجوی schema.prisma در Client
+      # ============================================================
+      - name: Schema fingerprint in generated client
         run: |
-          mkdir -p inspect-output
-          echo "=== Prisma version ===" > inspect-output/report.txt
-          npx prisma --version >> inspect-output/report.txt 2>&1
-          echo "" >> inspect-output/report.txt
-          echo "=== Generated metadata search ===" >> inspect-output/report.txt
-          grep -n "metadata" node_modules/.prisma/client/index.d.ts >> inspect-output/report.txt 2>&1 || echo "no metadata" >> inspect-output/report.txt
+          echo "═══════════════════════════════════"
+          echo " ۹. Schema fingerprint"
+          echo "═══════════════════════════════════"
+          grep -n "MediaCandidate" node_modules/.prisma/client/index.d.ts | head -20
+          
+          echo ""
+          echo "--- مدل MediaCandidate در Client ---"
+          grep -A 40 "^export type MediaCandidate = {" node_modules/.prisma/client/index.d.ts | head -50
 
-      - name: Upload report
+      - name: Upload full report
+        if: always()
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: prisma-inspect-${{ github.run_number }}
-          path: inspect-output/
+          name: inspect-${{ github.run_number }}
+          path: |
+            /tmp/test-prisma.ts
           retention-days: 7
