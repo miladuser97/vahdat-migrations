@@ -1,4 +1,9 @@
-import "server-only";
+// src/lib/server/prisma.ts
+// ⚠️ Prisma Client Singleton
+//
+// ⚠️ نکته: import "server-only" حذف شد چون با tsx (اسکریپت Node.js) 
+//    سازگار نیست. امنیت از طریق Prisma تأمین می‌شه (فقط server-side کار می‌کنه).
+
 import { PrismaClient } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
@@ -22,7 +27,6 @@ export const prisma =
   });
 
 // ✅ لاگ کوئری‌ها در حالت توسعه
-// (cast به any برای دور زدن تایپ‌های dynamically generated در Prisma)
 if (process.env.NODE_ENV === "development") {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (prisma as any).$on("query", (e: { query: string; duration: number }) => {
