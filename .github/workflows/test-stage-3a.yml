@@ -6,7 +6,7 @@ on:
 jobs:
   test-stage-3a:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -47,6 +47,9 @@ jobs:
             exit 1
           fi
           echo "✅ DATABASE_URL verified: points to temp DB"
+
+      - name: Remove old lockfile
+        run: rm -f package-lock.json
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --legacy-peer-deps
