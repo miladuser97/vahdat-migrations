@@ -32,6 +32,32 @@ function assert(condition: boolean, message: string): void {
 }
 
 // ============================================================
+// Helper: Deep Equality (ترتیب کلیدها مهم نیست)
+// ============================================================
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => deepEqual(val, b[i]));
+  }
+
+  if (typeof a === "object" && typeof b === "object") {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj).sort();
+    const bKeys = Object.keys(bObj).sort();
+    if (aKeys.length !== bKeys.length) return false;
+    if (aKeys.join(",") !== bKeys.join(",")) return false;
+    return aKeys.every((key) => deepEqual(aObj[key], bObj[key]));
+  }
+
+  return false;
+}
+
+// ============================================================
 // Cleanup
 // ============================================================
 async function cleanup(): Promise<{ success: boolean; errors: string[] }> {
@@ -170,7 +196,9 @@ async function main(): Promise<void> {
     assert(bulkResult.created.length === 3, "باید ۳ created باشه");
     assert(bulkResult.duplicates.length === 0, "نباید duplicate باشه");
     assert(bulkResult.errors.length === 0, "نباید error باشه");
-    console.log(`   ✅ PASS: created=${bulkResult.created.length}, duplicates=${bulkResult.duplicates.length}, errors=${bulkResult.errors.length}\n`);
+    console.log(
+      `   ✅ PASS: created=${bulkResult.created.length}, duplicates=${bulkResult.duplicates.length}, errors=${bulkResult.errors.length}\n`
+    );
 
     // ═══════════════════════════════════
     // Test 4: getCandidateById
@@ -227,8 +255,10 @@ async function main(): Promise<void> {
     assert(t6Check !== null, "candidate باید پیدا بشه");
 
     const storedMetadata = t6Check!.metadata;
-    const metadataMatch =
-      JSON.stringify(storedMetadata) === JSON.stringify(testMetadata);
+
+    // ⚠️ PostgreSQL JSONB کلیدها رو alphabetical ذخیره می‌کنه،
+    //    پس باید deep equality چک کنیم نه string equality
+    const metadataMatch = deepEqual(storedMetadata, testMetadata);
     assert(
       metadataMatch,
       `metadata باید match کنه.\n  sent: ${JSON.stringify(testMetadata)}\n  got: ${JSON.stringify(storedMetadata)}`
