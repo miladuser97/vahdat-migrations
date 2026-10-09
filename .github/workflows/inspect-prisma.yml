@@ -1,0 +1,105 @@
+name: Inspect Prisma Types
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Remove old lockfile
+        run: rm -f package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Prisma versions
+        run: |
+          echo "=== Prisma CLI version ==="
+          npx prisma --version
+          echo ""
+          echo "=== @prisma/client version ==="
+          cat node_modules/@prisma/client/package.json | grep '"version"'
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Show generated types location
+        run: |
+          echo "=== Generated files location ==="
+          ls -la node_modules/.prisma/client/ 2>/dev/null || echo ".prisma/client not found"
+          echo ""
+          echo "=== Find types in generated client ==="
+          find node_modules/.prisma/client -name "*.d.ts" | head -20
+
+      - name: Search for metadata in generated types
+        run: |
+          echo "=== Searching for 'metadata' in generated types ==="
+          grep -rn "metadata" node_modules/.prisma/client/*.d.ts | head -30 || echo "metadata NOT found"
+          echo ""
+          echo "=== MediaCandidateCreateInput ==="
+          grep -A 30 "MediaCandidateCreateInput" node_modules/.prisma/client/index.d.ts | head -60 || echo "not found"
+
+      - name: TypeScript minimal test
+        run: |
+          cat > test-prisma-types.ts << 'EOF'
+          import { Prisma } from "@prisma/client";
+
+          // Test 1: metadata in CreateInput
+          const test1: Prisma.MediaCandidateCreateInput = {
+            product: { connect: { id: "test" } },
+            sourceUrl: "https://test.com",
+            previewUrl: "https://test.com",
+            source: "OTHER",
+            metadata: { test: true },
+          };
+
+          // Test 2: metadata in UncheckedCreateInput
+          const test2: Prisma.MediaCandidateUncheckedCreateInput = {
+            productId: "test",
+            sourceUrl: "https://test.com",
+            previewUrl: "https://test.com",
+            source: "OTHER",
+            metadata: { test: true },
+          };
+
+          console.log("test1:", test1);
+          console.log("test2:", test2);
+          EOF
+          
+          echo "=== Running TypeScript check on test file ==="
+          npx tsc --noEmit test-prisma-types.ts 2>&1 || echo "TS check failed — expected"
+
+      - name: Show TypeScript errors in detail
+        if: always()
+        run: |
+          echo "=== Detailed TypeScript output ==="
+          npx tsc --noEmit test-prisma-types.ts 2>&1 || true
+
+      - name: Save report
+        if: always()
+        run: |
+          mkdir -p inspect-output
+          echo "=== Prisma version ===" > inspect-output/report.txt
+          npx prisma --version >> inspect-output/report.txt 2>&1
+          echo "" >> inspect-output/report.txt
+          echo "=== Generated metadata search ===" >> inspect-output/report.txt
+          grep -n "metadata" node_modules/.prisma/client/index.d.ts >> inspect-output/report.txt 2>&1 || echo "no metadata" >> inspect-output/report.txt
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prisma-inspect-${{ github.run_number }}
+          path: inspect-output/
+          retention-days: 7
