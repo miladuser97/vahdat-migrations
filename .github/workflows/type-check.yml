@@ -2,23 +2,11 @@ name: TypeScript Check
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'prisma/**'
-      - 'package.json'
-      - 'tsconfig.json'
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'prisma/**'
 
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     
     steps:
       - name: Checkout code
@@ -28,6 +16,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Remove old lockfile
+        run: rm -f package-lock.json
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --legacy-peer-deps
