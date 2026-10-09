@@ -1,0 +1,25 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "noEmit": true,
+      "incremental": false
+    },
+    "include": [
+      "src/features/media/**/*.ts",
+      "src/features/media/**/*.tsx",
+      "src/lib/logger.ts",
+      "src/lib/server/prisma.ts",
+      "scripts/media/integration-test.ts",
+      "next-env.d.ts"
+    ],
+    "exclude": [
+      "node_modules",
+      "**/__tests__/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      ".next",
+      "out",
+      "dist",
+      "build"
+    ]
+  }

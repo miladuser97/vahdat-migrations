@@ -1,0 +1,64 @@
+name: Test Stage 3A Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-stage-3a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify DATABASE_URL points to temp DB
+        run: |
+          echo "DATABASE_URL: $DATABASE_URL"
+          if [[ "$DATABASE_URL" != *"localhost"* ]]; then
+            echo "❌ DATABASE_URL is not pointing to localhost!"
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" == *"supabase"* ]]; then
+            echo "❌ DATABASE_URL contains 'supabase' — refusing to continue!"
+            exit 1
+          fi
+          echo "✅ DATABASE_URL verified: points to temp DB"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Push schema to temp DB
+        run: npx prisma db push --schema=prisma/schema.prisma --skip-generate
+
+      - name: TypeScript check (media only)
+        run: npx tsc -p tsconfig.media.json --noEmit
+
+      - name: Run integration tests
+        run: npx tsx scripts/media/integration-test.ts
