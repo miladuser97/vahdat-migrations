@@ -1,5 +1,5 @@
 // src/features/media/services/candidate-service.ts
-// ⚠️ Server-only: مدیریت MediaCandidate در DB
+// ⚠️ Server-only (به‌طور مفهومی): مدیریت MediaCandidate در DB
 //
 // ⚠️ نکته مهم: Duplicate check فعلی، قبل از insert انجام می‌شه.
 //    این روش در برابر دو درخواست هم‌زمان (race condition) تضمین کامل نمی‌ده.
@@ -12,8 +12,9 @@
 //
 // ⚠️ نکته Prisma: فیلد metadata (Json با @default) تو create input نیست.
 //    راه‌حل: بعد از create، با update ست می‌شه.
-
-import "server-only";
+//
+// ⚠️ نکته: import "server-only" حذف شد چون با tsx (اسکریپت Node.js) 
+//    سازگار نیست. امنیت از طریق Prisma تأمین می‌شه.
 
 import { MediaSource, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
