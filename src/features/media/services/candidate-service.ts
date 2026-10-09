@@ -159,8 +159,8 @@ export async function createCandidate(
   }
 
   // ۳. Create
-  const createData: Prisma.MediaCandidateCreateInput = {
-    product: { connect: { id: input.productId } },
+  const createData: Prisma.MediaCandidateUncheckedCreateInput = {
+    productId: input.productId,
     source: input.source,
     sourceId: input.sourceId ?? null,
     sourceUrl: input.sourceUrl,
