@@ -195,12 +195,15 @@ export async function createCandidate(
   });
 
   // ۴. ست کردن metadata (چون تو create قابل set نیست)
+  // ⚠️ نکته: از raw SQL استفاده می‌کنیم چون Prisma type اجازه نمی‌ده.
   if (input.metadata !== undefined) {
     try {
-      await prisma.mediaCandidate.update({
-        where: { id: created.id },
-        data: { metadata: { set: input.metadata as Prisma.InputJsonValue } },
-      });
+      const metadataJson = JSON.stringify(input.metadata);
+      await prisma.$executeRawUnsafe(
+        `UPDATE "MediaCandidate" SET "metadata" = $1::jsonb WHERE "id" = $2`,
+        metadataJson,
+        created.id
+      );
     } catch (metadataError) {
       logger.warn("[Candidate] metadata update failed", {
         candidateId: created.id,
