@@ -198,7 +198,7 @@ export async function createCandidate(
     try {
       await prisma.mediaCandidate.update({
         where: { id: created.id },
-        data: { metadata: input.metadata as Prisma.InputJsonValue },
+        data: { metadata: { set: input.metadata as Prisma.InputJsonValue } },
       });
     } catch (metadataError) {
       logger.warn("[Candidate] metadata update failed", {
