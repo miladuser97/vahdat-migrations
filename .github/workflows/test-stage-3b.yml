@@ -8,10 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    env:
-      NODE_ENV: test
-      ALLOW_LOCALHOST_FOR_TEST: "1"
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,8 +29,14 @@ jobs:
       - name: TypeScript check (media only)
         run: npx tsc -p tsconfig.media.json --noEmit
 
-      - name: Run security tests (validation)
+      - name: Run security tests (production mode)
+        env:
+          NODE_ENV: production
+          ALLOW_LOCALHOST_FOR_TEST: "0"
         run: npx tsx scripts/media/test-stage-3b-security.ts
 
-      - name: Run HTTP integration tests
+      - name: Run HTTP integration tests (test mode)
+        env:
+          NODE_ENV: test
+          ALLOW_LOCALHOST_FOR_TEST: "1"
         run: npx tsx scripts/media/test-stage-3b-http.ts
