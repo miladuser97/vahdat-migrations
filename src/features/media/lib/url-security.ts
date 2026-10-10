@@ -16,6 +16,19 @@ import { isIP } from "net";
 import { URL } from "url";
 
 // ============================================================
+// Test Mode (فقط در CI/test)
+// ============================================================
+// ⚠️ این flag فقط برای تست‌های integration که نیاز به HTTP server محلی دارن.
+// ⚠️ در production (NODE_ENV=production) هرگز فعال نمی‌شه.
+const ALLOW_LOCALHOST_FOR_TEST =
+  process.env.NODE_ENV === "test" ||
+  process.env.ALLOW_LOCALHOST_FOR_TEST === "1";
+
+export function isLocalhostAllowedForTest(): boolean {
+  return ALLOW_LOCALHOST_FOR_TEST;
+}
+
+// ============================================================
 // Constants
 // ============================================================
 const ALLOWED_PROTOCOLS = ["http:", "https:"];
@@ -30,46 +43,31 @@ const BLOCKED_HOSTNAMES = [
 
 // Private/Reserved IPv4 ranges
 const PRIVATE_IPV4_RANGES = [
-  // 0.0.0.0/8 — "this network"
   { start: "0.0.0.0", end: "0.255.255.255" },
-  // 10.0.0.0/8 — private
   { start: "10.0.0.0", end: "10.255.255.255" },
-  // 100.64.0.0/10 — carrier-grade NAT
   { start: "100.64.0.0", end: "100.127.255.255" },
-  // 127.0.0.0/8 — loopback
   { start: "127.0.0.0", end: "127.255.255.255" },
-  // 169.254.0.0/16 — link-local (AWS metadata!)
   { start: "169.254.0.0", end: "169.254.255.255" },
-  // 172.16.0.0/12 — private
   { start: "172.16.0.0", end: "172.31.255.255" },
-  // 192.0.0.0/24 — IETF protocol assignments
   { start: "192.0.0.0", end: "192.0.0.255" },
-  // 192.0.2.0/24 — TEST-NET-1
   { start: "192.0.2.0", end: "192.0.2.255" },
-  // 192.168.0.0/16 — private
   { start: "192.168.0.0", end: "192.168.255.255" },
-  // 198.18.0.0/15 — benchmark
   { start: "198.18.0.0", end: "198.19.255.255" },
-  // 198.51.100.0/24 — TEST-NET-2
   { start: "198.51.100.0", end: "198.51.100.255" },
-  // 203.0.113.0/24 — TEST-NET-3
   { start: "203.0.113.0", end: "203.0.113.255" },
-  // 224.0.0.0/4 — multicast
   { start: "224.0.0.0", end: "239.255.255.255" },
-  // 240.0.0.0/4 — reserved
   { start: "240.0.0.0", end: "255.255.255.255" },
 ];
 
-// Private/Reserved IPv6 prefixes (به‌صورت string prefix)
 const PRIVATE_IPV6_PREFIXES = [
-  "::1",          // loopback
-  "::",           // unspecified
-  "fe80:",        // link-local
-  "fec0:",        // site-local (deprecated)
-  "fc00:",        // unique local (ULA)
-  "fd00:",        // unique local (ULA)
-  "ff00:",        // multicast
-  "::ffff:",      // IPv4-mapped (باید چک بشه)
+  "::1",
+  "::",
+  "fe80:",
+  "fec0:",
+  "fc00:",
+  "fd00:",
+  "ff00:",
+  "::ffff:",
 ];
 
 // ============================================================
@@ -78,7 +76,6 @@ const PRIVATE_IPV6_PREFIXES = [
 export interface UrlValidationResult {
   valid: boolean;
   reason?: string;
-  // اگه valid، اینا پر می‌شن:
   parsedUrl?: URL;
   resolvedIps?: string[];
 }
@@ -110,7 +107,7 @@ function ipv4ToNumber(ip: string): number | null {
 // ============================================================
 function isPrivateIPv4(ip: string): boolean {
   const ipNum = ipv4ToNumber(ip);
-  if (ipNum === null) return true; // invalid → block
+  if (ipNum === null) return true;
 
   for (const range of PRIVATE_IPV4_RANGES) {
     const startNum = ipv4ToNumber(range.start);
@@ -127,7 +124,6 @@ function isPrivateIPv4(ip: string): boolean {
 function isPrivateIPv6(ip: string): boolean {
   const lower = ip.toLowerCase();
 
-  // IPv4-mapped: ::ffff:x.x.x.x
   const ipv4MappedMatch = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (ipv4MappedMatch && ipv4MappedMatch[1]) {
     return isPrivateIPv4(ipv4MappedMatch[1]);
@@ -135,7 +131,6 @@ function isPrivateIPv6(ip: string): boolean {
 
   for (const prefix of PRIVATE_IPV6_PREFIXES) {
     if (lower === prefix || lower.startsWith(prefix)) {
-      // ::ffff: needs special care — already handled
       if (prefix === "::ffff:") continue;
       return true;
     }
@@ -152,7 +147,7 @@ export function isPrivateIp(ip: string): boolean {
   const version = isIP(clean);
   if (version === 4) return isPrivateIPv4(clean);
   if (version === 6) return isPrivateIPv6(clean);
-  return true; // unknown → block
+  return true;
 }
 
 // ============================================================
@@ -174,28 +169,25 @@ export function validateUrlStructure(rawUrl: string): UrlValidationResult {
     return { valid: false, reason: "INVALID_URL_FORMAT" };
   }
 
-  // Protocol
   if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
     return { valid: false, reason: `PROTOCOL_NOT_ALLOWED: ${parsed.protocol}` };
   }
 
-  // Hostname
   const hostname = parsed.hostname.toLowerCase();
 
   if (!hostname) {
     return { valid: false, reason: "EMPTY_HOSTNAME" };
   }
 
-  // Blocked hostnames
-  if (BLOCKED_HOSTNAMES.includes(hostname)) {
+  // ⚠️ در حالت تست، localhost مجازه
+  if (!ALLOW_LOCALHOST_FOR_TEST && BLOCKED_HOSTNAMES.includes(hostname)) {
     return { valid: false, reason: `BLOCKED_HOSTNAME: ${hostname}` };
   }
 
-  // ⚠️ new URL() براکت‌ها رو تو hostname نگه می‌داره برای IPv6
   const cleanHostname = stripIpv6Brackets(hostname);
 
-  // اگه hostname یه IP literal بود، مستقیم چک کن
-  if (isIP(cleanHostname) !== 0) {
+  // ⚠️ در حالت تست، private IP literal مجازه
+  if (!ALLOW_LOCALHOST_FOR_TEST && isIP(cleanHostname) !== 0) {
     if (isPrivateIp(cleanHostname)) {
       return { valid: false, reason: `PRIVATE_IP_LITERAL: ${hostname}` };
     }
@@ -206,12 +198,10 @@ export function validateUrlStructure(rawUrl: string): UrlValidationResult {
 
 // ============================================================
 // Full validation با DNS resolution
-// ⚠️ این تابع async هست چون DNS resolve می‌کنه
 // ============================================================
 export async function validateUrlForDownload(
   rawUrl: string
 ): Promise<UrlValidationResult> {
-  // ۱. Structure
   const structureResult = validateUrlStructure(rawUrl);
   if (!structureResult.valid || !structureResult.parsedUrl) {
     return structureResult;
@@ -221,12 +211,10 @@ export async function validateUrlForDownload(
   const hostname = parsed.hostname.toLowerCase();
   const cleanHostname = stripIpv6Brackets(hostname);
 
-  // ۲. اگه IP literal بود، چک بالا کافیه
   if (isIP(cleanHostname) !== 0) {
     return { valid: true, parsedUrl: parsed, resolvedIps: [cleanHostname] };
   }
 
-  // ۳. DNS resolve
   let ips: string[] = [];
   try {
     const result = await dns.lookup(cleanHostname, { all: true });
@@ -239,27 +227,24 @@ export async function validateUrlForDownload(
     return { valid: false, reason: "DNS_NO_RESULTS" };
   }
 
-  // ۴. چک همه‌ی IPها
-  for (const ip of ips) {
-    if (isPrivateIp(ip)) {
-      return { valid: false, reason: `DNS_RESOLVED_TO_PRIVATE: ${ip}` };
+  // ⚠️ در حالت تست، private IP مجازه
+  if (!ALLOW_LOCALHOST_FOR_TEST) {
+    for (const ip of ips) {
+      if (isPrivateIp(ip)) {
+        return { valid: false, reason: `DNS_RESOLVED_TO_PRIVATE: ${ip}` };
+      }
     }
   }
-
-  // ⚠️ محدودیت: چون از fetch استفاده می‌کنیم، نمی‌تونیم IP رو pin کنیم.
-  // در آینده باید از http.request با lookup سفارشی استفاده کنیم.
-  // فعلاً DNS قبل از fetch resolve می‌کنیم (۹۰٪ محافظت).
 
   return { valid: true, parsedUrl: parsed, resolvedIps: ips };
 }
 
 // ============================================================
-// Sanitize URL for logging (حذف token, query, fragment)
+// Sanitize URL for logging
 // ============================================================
 export function sanitizeUrlForLog(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
-    // فقط protocol + hostname + pathname
     return `${parsed.protocol}//${parsed.hostname}${parsed.pathname}`;
   } catch {
     return "[INVALID_URL]";

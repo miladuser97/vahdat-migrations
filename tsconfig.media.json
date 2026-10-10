@@ -11,6 +11,7 @@
     "src/lib/server/prisma.ts",
     "scripts/media/integration-test.ts",
     "scripts/media/test-stage-3b-security.ts",
+    "scripts/media/test-stage-3b-http.ts",
     "next-env.d.ts"
   ],
   "exclude": [
