@@ -81,10 +81,8 @@ async function main(): Promise<void> {
   console.log("🧪 Stage 3B HTTP Tests — Phase A");
   console.log("═══════════════════════════════════\n");
 
-  // چک test mode
   if (!isLocalhostAllowedForTest()) {
     console.error("❌ این تست نیاز به NODE_ENV=test یا ALLOW_LOCALHOST_FOR_TEST=1 داره");
-    console.error("   لطفاً با env var مناسب اجرا کن.");
     process.exit(1);
   }
   console.log("✅ Test mode فعال: localhost مجاز\n");
@@ -130,7 +128,10 @@ async function main(): Promise<void> {
 
     try {
       const result = await safeDownload(`${serverA.url}/start.png`);
-      assert(result.success, `باید موفق باشه: ${!result.success ? result.reason : ""}`);
+      assert(
+        result.success,
+        `باید موفق باشه: ${!result.success ? result.reason : ""}`
+      );
     } finally {
       await serverA.close();
       await serverB.close();
@@ -200,9 +201,31 @@ async function main(): Promise<void> {
     const server = await startMockServer((_req, res) => {
       res.writeHead(200, {
         "Content-Type": "image/png",
-        "Content-Length": String(20 * 1024 * 1024),
+        "Content-Length": String(20 * 1024 * 1024), // 20 MiB
       });
-      res.end();
+      // ⚠️ به‌جای end() خالی، چانک‌های واقعی می‌فرستیم
+      // ولی قبل از اینکه دانلود کامل بشه، downloader باید قطع کنه
+      const chunk = Buffer.alloc(1024 * 1024); // 1 MiB
+      let sent = 0;
+      const interval = setInterval(() => {
+        if (sent > 25) {
+          clearInterval(interval);
+          try {
+            res.end();
+          } catch {
+            // ممکنه connection قبلاً بسته شده باشه
+          }
+          return;
+        }
+        try {
+          res.write(chunk);
+          sent++;
+        } catch {
+          clearInterval(interval);
+        }
+      }, 5);
+
+      res.on("close", () => clearInterval(interval));
     });
 
     try {
@@ -224,16 +247,24 @@ async function main(): Promise<void> {
   await test("Stream بزرگتر از سقف (بدون Content-Length) → قطع", async () => {
     const server = await startMockServer((_req, res) => {
       res.writeHead(200, { "Content-Type": "image/png" });
-      const chunk = Buffer.alloc(1024 * 1024);
+      const chunk = Buffer.alloc(1024 * 1024); // 1 MiB
       let sent = 0;
       const interval = setInterval(() => {
         if (sent > 20) {
           clearInterval(interval);
-          res.end();
+          try {
+            res.end();
+          } catch {
+            // ممکنه connection قبلاً بسته شده باشه
+          }
           return;
         }
-        res.write(chunk);
-        sent++;
+        try {
+          res.write(chunk);
+          sent++;
+        } catch {
+          clearInterval(interval);
+        }
       }, 10);
 
       res.on("close", () => clearInterval(interval));
@@ -288,9 +319,15 @@ async function main(): Promise<void> {
 
     try {
       const result = await safeDownload(`${server.url}/image.png`);
-      assert(result.success, `باید موفق باشه: ${!result.success ? result.reason : ""}`);
+      assert(
+        result.success,
+        `باید موفق باشه: ${!result.success ? result.reason : ""}`
+      );
       if (result.success) {
-        assert(result.contentType === "image/png", "contentType باید image/png باشه");
+        assert(
+          result.contentType === "image/png",
+          "contentType باید image/png باشه"
+        );
       }
     } finally {
       await server.close();
