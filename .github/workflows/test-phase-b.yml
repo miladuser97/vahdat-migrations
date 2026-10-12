@@ -1,0 +1,74 @@
+name: Test Phase B Integration
+
+on:
+  push:
+    branches: [ feature/stage-3b-migrations ]
+  workflow_dispatch:
+
+jobs:
+  test-phase-b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+      NODE_ENV: test
+      ALLOW_LOCALHOST_FOR_TEST: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify DATABASE_URL points to temp DB
+        run: |
+          echo "DATABASE_URL: $DATABASE_URL"
+          if [[ "$DATABASE_URL" != *"localhost"* ]]; then
+            echo "DATABASE_URL must point to localhost"
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" == *"supabase"* ]]; then
+            echo "DATABASE_URL must not point to Supabase"
+            exit 1
+          fi
+          echo "DATABASE_URL verified: points to temp DB"
+
+      - name: Try npm ci
+        id: npm_ci
+        run: npm ci --no-audit --no-fund
+        continue-on-error: true
+
+      - name: Fallback to npm install (only if npm ci failed)
+        if: steps.npm_ci.outcome == 'failure'
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Generate Prisma Client (phase-b schema)
+        run: npx prisma generate --schema=prisma/schema.phase-b-test.prisma
+
+      - name: Push schema to temp DB (phase-b schema)
+        run: npx prisma db push --schema=prisma/schema.phase-b-test.prisma --skip-generate
+
+      - name: TypeScript check (media only)
+        run: npx tsc -p tsconfig.media.json --noEmit
+
+      - name: Run Phase B tests
+        run: npx tsx scripts/media/integration-test-phase-b.ts
