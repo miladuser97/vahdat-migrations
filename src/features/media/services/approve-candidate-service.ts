@@ -4,7 +4,7 @@
 // این سرویس از ابزارهای امنیتی موجود پروژه استفاده می‌کنه:
 //   - safeDownload (IP Pinning + SSRF protection)
 //   - validateImageBuffer (magic bytes + sharp + checksum واقعی)
-//   - createServerSupabaseClient + PRODUCT_MEDIA_BUCKET
+//   - dynamic import createServerSupabaseClient (سازگار با tsx)
 //
 // ⚠️ کنترل هم‌زمان با claimToken + claimExpiresAt
 // ⚠️ جلوگیری از تأیید هم‌زمان با updateMany شرطی
@@ -15,10 +15,6 @@ import { logger } from "@/lib/logger";
 import { createHash } from "crypto";
 import { safeDownload } from "../lib/downloader";
 import { validateImageBuffer, type AllowedMimeType } from "../lib/image-validator";
-import {
-  createServerSupabaseClient,
-  PRODUCT_MEDIA_BUCKET,
-} from "@/lib/supabase/server";
 
 // ============================================================
 // ثابت‌ها
@@ -26,6 +22,7 @@ import {
 
 const CLAIM_TTL_MS = 5 * 60 * 1000; // 5 دقیقه
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+const PRODUCT_MEDIA_BUCKET = "product-media";
 
 const EXTENSION_BY_MIME: Record<AllowedMimeType, string> = {
   "image/jpeg": "jpg",
@@ -146,7 +143,7 @@ export async function claimCandidate(
 }
 
 // ============================================================
-// Helper: آپلود به Supabase Storage
+// Helper: آپلود به Supabase Storage (dynamic import برای tsx)
 // ============================================================
 
 interface StorageUploadResult {
@@ -163,6 +160,7 @@ async function uploadToStorage(
   const extension = EXTENSION_BY_MIME[mimeType];
   const storagePath = `candidates/${candidateId}/${checksum}.${extension}`;
 
+  const { createServerSupabaseClient } = await import("@/lib/supabase/server");
   const supabase = createServerSupabaseClient();
 
   const { error } = await supabase.storage
@@ -192,6 +190,7 @@ async function uploadToStorage(
 
 async function cleanupStorage(storagePath: string): Promise<void> {
   try {
+    const { createServerSupabaseClient } = await import("@/lib/supabase/server");
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.storage
       .from(PRODUCT_MEDIA_BUCKET)
@@ -397,7 +396,7 @@ export async function approveCandidate(
       mediaId = result.mediaAsset.id;
       productMediaId = result.productMedia.id;
     } catch (e) {
-      // ⚠️ اگه MediaAsset reuse شده بود، فایل رو حذف نکن (متعلق به دیگری)
+      // اگه MediaAsset reuse شده بود، فایل رو حذف نکن (متعلق به دیگری)
       if (storagePath && !reusedMediaAsset) {
         await cleanupStorage(storagePath);
       }
