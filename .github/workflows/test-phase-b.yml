@@ -52,13 +52,10 @@ jobs:
           fi
           echo "DATABASE_URL verified: points to temp DB"
 
-      - name: Try npm ci
-        id: npm_ci
-        run: npm ci --no-audit --no-fund
-        continue-on-error: true
+      - name: Remove old lockfile (CI only — lockfile is v1 and incompatible)
+        run: rm -f package-lock.json
 
-      - name: Fallback to npm install (only if npm ci failed)
-        if: steps.npm_ci.outcome == 'failure'
+      - name: Install dependencies
         run: npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: Generate Prisma Client (phase-b schema)
