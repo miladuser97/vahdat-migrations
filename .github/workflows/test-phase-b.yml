@@ -67,5 +67,8 @@ jobs:
       - name: TypeScript check (media only)
         run: npx tsc -p tsconfig.media.json --noEmit
 
-      - name: Run Phase B tests
+      - name: Run Phase B tests (claim/reject)
         run: npx tsx scripts/media/integration-test-phase-b.ts
+
+      - name: Run Phase B tests (approve success + errors)
+        run: npx tsx scripts/media/integration-test-phase-b-approve.ts

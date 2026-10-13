@@ -9,6 +9,7 @@
 // ⚠️ کنترل هم‌زمان با claimToken + claimExpiresAt
 // ⚠️ جلوگیری از تأیید هم‌زمان با updateMany شرطی
 // ⚠️ cleanup امن در صورت شکست Storage یا DB
+// ⚠️ Dependency Injection برای تست‌پذیری (deps)
 
 import { prisma } from "@/lib/server/prisma";
 import { logger } from "@/lib/logger";
@@ -71,6 +72,17 @@ export interface RejectCandidateInput {
 export type ApproveOutcome =
   | { success: true; data: ApproveResult }
   | { success: false; error: string; code: string };
+
+// ============================================================
+// Dependency Injection برای تست‌پذیری
+// ============================================================
+
+export interface ApproveDeps {
+  download?: typeof safeDownload;
+  validate?: typeof validateImageBuffer;
+  uploadToStorage?: typeof uploadToStorage;
+  cleanupStorage?: typeof cleanupStorage;
+}
 
 // ============================================================
 // Helper: تولید claimToken
@@ -217,9 +229,15 @@ async function cleanupStorage(storagePath: string): Promise<void> {
 // ============================================================
 
 export async function approveCandidate(
-  input: ApproveCandidateInput
+  input: ApproveCandidateInput,
+  deps: ApproveDeps = {}
 ): Promise<ApproveOutcome> {
   const { candidateId, claimToken, userId, role, isPrimary, variantId } = input;
+
+  const downloadFn = deps.download ?? safeDownload;
+  const validateFn = deps.validate ?? validateImageBuffer;
+  const uploadFn = deps.uploadToStorage ?? uploadToStorage;
+  const cleanupFn = deps.cleanupStorage ?? cleanupStorage;
 
   // ─────────────────────────────────────────
   // مرحله ۱: بررسی candidate و claim
@@ -275,7 +293,7 @@ export async function approveCandidate(
     // ─────────────────────────────────────────
     // مرحله ۳: دانلود امن
     // ─────────────────────────────────────────
-    const downloadOutcome = await safeDownload(candidate.sourceUrl, {
+    const downloadOutcome = await downloadFn(candidate.sourceUrl, {
       maxSize: MAX_IMAGE_SIZE_BYTES,
     });
 
@@ -293,7 +311,7 @@ export async function approveCandidate(
     // ─────────────────────────────────────────
     // مرحله ۴: اعتبارسنجی تصویر (magic bytes + decode)
     // ─────────────────────────────────────────
-    const validation = await validateImageBuffer(buffer);
+    const validation = await validateFn(buffer);
 
     if (!validation.valid) {
       await releaseClaim(candidateId, claimToken);
@@ -311,7 +329,7 @@ export async function approveCandidate(
     // ─────────────────────────────────────────
     let upload: StorageUploadResult;
     try {
-      upload = await uploadToStorage(candidateId, buffer, mimeType, checksum);
+      upload = await uploadFn(candidateId, buffer, mimeType, checksum);
       storagePath = upload.storagePath;
     } catch (e) {
       await releaseClaim(candidateId, claimToken);
@@ -398,7 +416,7 @@ export async function approveCandidate(
     } catch (e) {
       // اگه MediaAsset reuse شده بود، فایل رو حذف نکن (متعلق به دیگری)
       if (storagePath && !reusedMediaAsset) {
-        await cleanupStorage(storagePath);
+        await cleanupFn(storagePath);
       }
       await releaseClaim(candidateId, claimToken);
 
@@ -428,7 +446,7 @@ export async function approveCandidate(
     };
   } catch (e) {
     if (storagePath) {
-      await cleanupStorage(storagePath);
+      await cleanupFn(storagePath);
     }
     await releaseClaim(candidateId, claimToken);
 

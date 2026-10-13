@@ -13,6 +13,7 @@
     "scripts/media/test-stage-3b-security.ts",
     "scripts/media/test-stage-3b-http.ts",
     "scripts/media/integration-test-phase-b.ts",
+    "scripts/media/integration-test-phase-b-approve.ts",
     "next-env.d.ts"
   ],
   "exclude": [
