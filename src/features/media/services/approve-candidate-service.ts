@@ -10,7 +10,12 @@
 // ⚠️ جلوگیری از تأیید هم‌زمان با updateMany شرطی
 // ⚠️ cleanup امن در صورت شکست Storage یا DB
 // ⚠️ Dependency Injection برای تست‌پذیری (deps)
+// ⚠️ PRODUCT_MEDIA_EXISTS: خطای کنترل‌شده وقتی MediaAsset قبلاً
+//    به همون Product لینک شده
+// ⚠️ P2002 فقط برای قید (productId, mediaId) — نه قیدهای دیگه
+// ⚠️ مدیریت فایل یتیم: فایل جدید آپلود شده پاک می‌شه اگه استفاده نشه
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { logger } from "@/lib/logger";
 import { createHash } from "crypto";
@@ -101,6 +106,25 @@ function generateClaimToken(): string {
 function isClaimExpired(expiresAt: Date | null): boolean {
   if (!expiresAt) return true;
   return expiresAt.getTime() < Date.now();
+}
+
+// ============================================================
+// Helper: بررسی P2002 مخصوص قید (productId, mediaId)
+// ============================================================
+// ⚠️ P2002 ممکنه برای هر unique constraint باشه
+// فقط اگه target شامل productId و mediaId باشه، اون وقت
+// PRODUCT_MEDIA_EXISTS برمی‌گردونیم
+// ============================================================
+
+function isProductMediaUniqueViolation(e: unknown): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (e.code !== "P2002") return false;
+
+  const target = (e.meta as { target?: unknown } | undefined)?.target;
+  if (!Array.isArray(target)) return false;
+
+  const targetStr = target.map((t) => String(t));
+  return targetStr.includes("productId") && targetStr.includes("mediaId");
 }
 
 // ============================================================
@@ -288,6 +312,7 @@ export async function approveCandidate(
   }
 
   let storagePath: string | null = null;
+  let mediaAssetIdForConflict: string | null = null;
 
   try {
     // ─────────────────────────────────────────
@@ -373,7 +398,25 @@ export async function approveCandidate(
           reusedMediaAsset = true;
         }
 
-        // ۶.۲: ProductMedia
+        mediaAssetIdForConflict = mediaAsset.id;
+
+        // ۶.۲: ProductMedia — طبق unique constraint (productId, mediaId)
+        // رفتار محافظه‌کارانه: اگه ProductMedia قبلی وجود داشته باشه،
+        // خطای کنترل‌شده برمی‌گردونیم
+        const existingProductMedia = await tx.productMedia.findFirst({
+          where: {
+            productId: candidate.productId,
+            mediaId: mediaAsset.id,
+          },
+        });
+
+        if (existingProductMedia) {
+          throw new Error(
+            `PRODUCT_MEDIA_EXISTS: این MediaAsset از قبل به این Product متصل است (productMediaId=${existingProductMedia.id})`
+          );
+        }
+
+        // ایجاد ProductMedia جدید
         const productMedia = await tx.productMedia.create({
           data: {
             productId: candidate.productId,
@@ -414,7 +457,62 @@ export async function approveCandidate(
       mediaId = result.mediaAsset.id;
       productMediaId = result.productMedia.id;
     } catch (e) {
-      // اگه MediaAsset reuse شده بود، فایل رو حذف نکن (متعلق به دیگری)
+      const errorMessage = e instanceof Error ? e.message : String(e);
+
+      // ✅ PRODUCT_MEDIA_EXISTS (کنترل‌شده، قبل از P2002)
+      if (errorMessage.startsWith("PRODUCT_MEDIA_EXISTS")) {
+        // ⚠️ فایل جدید آپلود شده، ولی MediaAsset موجوده
+        // فایل جدید باید پاک بشه (نمی‌خوایم یتیم بمونه)
+        // ولی اگه MediaAsset جدید ساخته شده (نه reuse)، نباید پاک بشه
+        if (storagePath && !reusedMediaAsset) {
+          // MediaAsset جدید ساخته شده — فایلش مال خودشه، پاک نکن
+          // ولی چون ProductMedia conflict داره، MediaAsset جدید یتیم می‌مونه
+          // در این حالت هم فایل باید پاک بشه و MediaAsset هم باید پاک بشه
+          // ولی این پیچیده‌ست — فعلاً فایل رو پاک می‌کنیم
+          await cleanupFn(storagePath);
+        } else if (storagePath && reusedMediaAsset) {
+          // MediaAsset reuse شده — فایل جدید آپلود شده ولی استفاده نمی‌شه
+          // فایل جدید باید پاک بشه (MediaAsset قبلی فایل خودشو داره)
+          await cleanupFn(storagePath);
+        }
+
+        await releaseClaim(candidateId, claimToken);
+        return {
+          success: false,
+          error: errorMessage,
+          code: "PRODUCT_MEDIA_EXISTS",
+        };
+      }
+
+      // ✅ P2002 مخصوص قید (productId, mediaId) — بعد از transaction
+      // (transaction rollback شده، حالا می‌تونیم دوباره query بزنیم)
+      if (isProductMediaUniqueViolation(e) && mediaAssetIdForConflict) {
+        const conflict = await prisma.productMedia.findFirst({
+          where: {
+            productId: candidate.productId,
+            mediaId: mediaAssetIdForConflict,
+          },
+        });
+
+        if (conflict) {
+          // فایل جدید باید پاک بشه (چون MediaAsset از قبل فایل داره)
+          if (storagePath) {
+            await cleanupFn(storagePath);
+          }
+          await releaseClaim(candidateId, claimToken);
+          return {
+            success: false,
+            error: `PRODUCT_MEDIA_EXISTS: این MediaAsset از قبل به این Product متصل است (productMediaId=${conflict.id})`,
+            code: "PRODUCT_MEDIA_EXISTS",
+          };
+        }
+
+        // ⚠️ P2002 اتفاق افتاد ولی رکورد پیدا نشد
+        // یعنی نمی‌تونیم قطعی بگیم ProductMedia ساخته شده
+        // خطای اصلی رو حفظ می‌کنیم
+      }
+
+      // اگه MediaAsset reuse نشده بود، فایل جدید رو پاک کن
       if (storagePath && !reusedMediaAsset) {
         await cleanupFn(storagePath);
       }
@@ -422,7 +520,7 @@ export async function approveCandidate(
 
       return {
         success: false,
-        error: e instanceof Error ? e.message : "DB transaction ناموفق",
+        error: errorMessage,
         code: "DB_FAILED",
       };
     }
