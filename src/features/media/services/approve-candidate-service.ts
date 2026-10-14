@@ -14,6 +14,7 @@
 //    به همون Product لینک شده
 // ⚠️ P2002 فقط برای قید (productId, mediaId) — نه قیدهای دیگه
 // ⚠️ مدیریت فایل یتیم: فایل جدید آپلود شده پاک می‌شه اگه استفاده نشه
+// ⚠️ خطای cleanup نباید خطای اصلی رو پنهان کنه
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
@@ -120,11 +121,46 @@ function isProductMediaUniqueViolation(e: unknown): boolean {
   if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
   if (e.code !== "P2002") return false;
 
-  const target = (e.meta as { target?: unknown } | undefined)?.target;
-  if (!Array.isArray(target)) return false;
+  const meta = e.meta as { target?: unknown } | undefined;
+  const target = meta?.target;
 
-  const targetStr = target.map((t) => String(t));
-  return targetStr.includes("productId") && targetStr.includes("mediaId");
+  if (Array.isArray(target)) {
+    const targetStr = target.map((t) => String(t));
+    return targetStr.includes("productId") && targetStr.includes("mediaId");
+  }
+
+  if (typeof target === "string") {
+    return target.includes("productId") && target.includes("mediaId");
+  }
+
+  return false;
+}
+
+// ============================================================
+// Helper: cleanup امن (خطا رو پنهان نمی‌کنه)
+// ============================================================
+// ⚠️ خطای cleanup نباید خطای اصلی رو پنهان کنه
+// فقط log می‌شه و ادامه می‌دیم
+// ============================================================
+
+async function safeCleanup(
+  cleanupFn: typeof cleanupStorage,
+  storagePath: string,
+  context: string,
+  extraMeta: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await cleanupFn(storagePath);
+  } catch (cleanupError) {
+    logger.error(`[Approve] Cleanup failed after ${context}`, {
+      storagePath,
+      error:
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+      ...extraMeta,
+    });
+  }
 }
 
 // ============================================================
@@ -225,26 +261,14 @@ async function uploadToStorage(
 // ============================================================
 
 async function cleanupStorage(storagePath: string): Promise<void> {
-  try {
-    const { createServerSupabaseClient } = await import("@/lib/supabase/server");
-    const supabase = createServerSupabaseClient();
-    const { error } = await supabase.storage
-      .from(PRODUCT_MEDIA_BUCKET)
-      .remove([storagePath]);
+  const { createServerSupabaseClient } = await import("@/lib/supabase/server");
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .remove([storagePath]);
 
-    if (error) {
-      logger.warn("[Approve] Storage cleanup failed", {
-        storagePath,
-        error: error.message,
-      });
-    } else {
-      logger.info("[Approve] Storage cleanup succeeded", { storagePath });
-    }
-  } catch (e) {
-    logger.error("[Approve] Storage cleanup threw", {
-      storagePath,
-      error: e instanceof Error ? e.message : String(e),
-    });
+  if (error) {
+    throw new Error(`STORAGE_CLEANUP_FAILED: ${error.message}`);
   }
 }
 
@@ -334,7 +358,7 @@ export async function approveCandidate(
     const { buffer } = downloadOutcome;
 
     // ─────────────────────────────────────────
-    // مرحله ۴: اعتبارسنجی تصویر (magic bytes + decode)
+    // مرحله ۴: اعتبارسنجی تصویر
     // ─────────────────────────────────────────
     const validation = await validateFn(buffer);
 
@@ -401,8 +425,6 @@ export async function approveCandidate(
         mediaAssetIdForConflict = mediaAsset.id;
 
         // ۶.۲: ProductMedia — طبق unique constraint (productId, mediaId)
-        // رفتار محافظه‌کارانه: اگه ProductMedia قبلی وجود داشته باشه،
-        // خطای کنترل‌شده برمی‌گردونیم
         const existingProductMedia = await tx.productMedia.findFirst({
           where: {
             productId: candidate.productId,
@@ -461,21 +483,11 @@ export async function approveCandidate(
 
       // ✅ PRODUCT_MEDIA_EXISTS (کنترل‌شده، قبل از P2002)
       if (errorMessage.startsWith("PRODUCT_MEDIA_EXISTS")) {
-        // ⚠️ فایل جدید آپلود شده، ولی MediaAsset موجوده
-        // فایل جدید باید پاک بشه (نمی‌خوایم یتیم بمونه)
-        // ولی اگه MediaAsset جدید ساخته شده (نه reuse)، نباید پاک بشه
-        if (storagePath && !reusedMediaAsset) {
-          // MediaAsset جدید ساخته شده — فایلش مال خودشه، پاک نکن
-          // ولی چون ProductMedia conflict داره، MediaAsset جدید یتیم می‌مونه
-          // در این حالت هم فایل باید پاک بشه و MediaAsset هم باید پاک بشه
-          // ولی این پیچیده‌ست — فعلاً فایل رو پاک می‌کنیم
-          await cleanupFn(storagePath);
-        } else if (storagePath && reusedMediaAsset) {
-          // MediaAsset reuse شده — فایل جدید آپلود شده ولی استفاده نمی‌شه
-          // فایل جدید باید پاک بشه (MediaAsset قبلی فایل خودشو داره)
-          await cleanupFn(storagePath);
+        if (storagePath) {
+          await safeCleanup(cleanupFn, storagePath, "PRODUCT_MEDIA_EXISTS", {
+            candidateId,
+          });
         }
-
         await releaseClaim(candidateId, claimToken);
         return {
           success: false,
@@ -484,8 +496,7 @@ export async function approveCandidate(
         };
       }
 
-      // ✅ P2002 مخصوص قید (productId, mediaId) — بعد از transaction
-      // (transaction rollback شده، حالا می‌تونیم دوباره query بزنیم)
+      // ✅ P2002 مخصوص قید (productId, mediaId)
       if (isProductMediaUniqueViolation(e) && mediaAssetIdForConflict) {
         const conflict = await prisma.productMedia.findFirst({
           where: {
@@ -495,9 +506,10 @@ export async function approveCandidate(
         });
 
         if (conflict) {
-          // فایل جدید باید پاک بشه (چون MediaAsset از قبل فایل داره)
           if (storagePath) {
-            await cleanupFn(storagePath);
+            await safeCleanup(cleanupFn, storagePath, "P2002 conflict", {
+              candidateId,
+            });
           }
           await releaseClaim(candidateId, claimToken);
           return {
@@ -506,15 +518,13 @@ export async function approveCandidate(
             code: "PRODUCT_MEDIA_EXISTS",
           };
         }
-
-        // ⚠️ P2002 اتفاق افتاد ولی رکورد پیدا نشد
-        // یعنی نمی‌تونیم قطعی بگیم ProductMedia ساخته شده
-        // خطای اصلی رو حفظ می‌کنیم
       }
 
       // اگه MediaAsset reuse نشده بود، فایل جدید رو پاک کن
       if (storagePath && !reusedMediaAsset) {
-        await cleanupFn(storagePath);
+        await safeCleanup(cleanupFn, storagePath, "DB_FAILED", {
+          candidateId,
+        });
       }
       await releaseClaim(candidateId, claimToken);
 
@@ -544,7 +554,9 @@ export async function approveCandidate(
     };
   } catch (e) {
     if (storagePath) {
-      await cleanupFn(storagePath);
+      await safeCleanup(cleanupFn, storagePath, "unexpected error", {
+        candidateId,
+      });
     }
     await releaseClaim(candidateId, claimToken);
 
