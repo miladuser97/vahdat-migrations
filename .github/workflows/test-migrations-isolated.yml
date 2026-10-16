@@ -1,7 +1,8 @@
 name: Test Migrations Isolated
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ feature/stage-3b-migrations ]
 
 permissions:
   contents: read
