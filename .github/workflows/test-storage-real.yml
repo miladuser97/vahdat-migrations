@@ -52,13 +52,13 @@ jobs:
           
           const hostname = parsed.hostname.toLowerCase();
           
-          // ⚠️ اول Production رو رد کن (قبل از hostname mismatch)
+          // اول Production رو رد کن (قبل از hostname mismatch)
           if (hostname === 'bcmhykiruwbgovaxnwzr.supabase.co' || hostname.includes('bcmhykiruwbgovaxnwzr')) {
             console.error('Error [URL_IS_PRODUCTION]');
             process.exit(1);
           }
           
-          // ⚠️ بعد hostname دقیق
+          // بعد hostname دقیق
           if (hostname !== 'whrfzvzysehggsqovqqj.supabase.co') {
             console.error('Error [URL_HOST_MISMATCH]');
             process.exit(1);
