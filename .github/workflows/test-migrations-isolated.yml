@@ -72,11 +72,17 @@ jobs:
           echo "Target migrations copied"
           ls -la /tmp/test-project/prisma/migrations/
 
+      - name: Verify Prisma version
+        working-directory: /tmp/test-project
+        run: |
+          set -e
+          ${{ github.workspace }}/node_modules/.bin/prisma --version
+
       - name: Run prisma migrate deploy
         working-directory: /tmp/test-project
         run: |
           set -e
-          npx prisma migrate deploy
+          ${{ github.workspace }}/node_modules/.bin/prisma migrate deploy
           echo "=== Migration history ==="
           psql "$DATABASE_URL" -c "SELECT migration_name, applied_steps_count FROM _prisma_migrations ORDER BY started_at;"
 
