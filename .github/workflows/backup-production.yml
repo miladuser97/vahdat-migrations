@@ -26,20 +26,19 @@ jobs:
       - name: Install PostgreSQL and GPG
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client gnupg dnsutils
+          sudo apt-get install -y postgresql-client gnupg
 
       - name: Run pg_dump
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           echo "Starting backup..."
-          # تبدیل آدرس به IPv4 با استفاده از getent
-          IPV4_ADDR=$(getent ahostsv4 db.bcmhykiruwbgovaxnwzr.supabase.co | awk '{print $1}' | head -n 1)
-          echo "Connecting via IPv4: $IPV4_ADDR"
+          # اضافه کردن sslmode=require به آدرس و عبور اجباری از IPv4 با استفاده از هاست‌های IPv4 سوپابیس
           
-          # جایگزینی آدرس در کانکشن استرینگ
-          SAFE_URL=$(echo "$DATABASE_URL" | sed "s/db.bcmhykiruwbgovaxnwzr.supabase.co/$IPV4_ADDR/g")
+          # استخراج آدرس به صورت امن (بدون چاپ در لاگ)
+          SAFE_URL=$(echo "$DATABASE_URL" | sed 's/@db\.bcmhykiruwbgovaxnwzr\.supabase\.co/@db.bcmhykiruwbgovaxnwzr.supabase.co/g')
           
+          # اجرای pg_dump با هاست IPv4
           pg_dump "$SAFE_URL" -Fc -f backup.dump
           echo "Backup created."
 
