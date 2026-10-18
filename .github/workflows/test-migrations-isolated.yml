@@ -1,0 +1,148 @@
+name: Test Migrations Isolated
+
+on:
+  push:
+    branches: [ feature/stage-3b-migrations ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/testdb
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Remove old lockfile (CI only)
+        run: rm -f package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Build isolated test project
+        run: |
+          set -e
+          mkdir -p /tmp/test-project/prisma/migrations
+          echo "=== Extract schema-before ==="
+          git show origin/main:prisma/schema.prisma > /tmp/test-project/prisma/schema.prisma
+          echo "Schema-before extracted"
+          echo "=== Generate baseline migration ==="
+          mkdir -p /tmp/test-project/prisma/migrations/20261007_baseline
+          npx prisma migrate diff \
+            --from-empty \
+            --to-schema-datamodel /tmp/test-project/prisma/schema.prisma \
+            --script > /tmp/test-project/prisma/migrations/20261007_baseline/migration.sql
+          echo "Baseline generated"
+          wc -l /tmp/test-project/prisma/migrations/20261007_baseline/migration.sql
+          echo "=== Copy target migrations ==="
+          cp -r prisma/migrations/20261010_add_approving_status /tmp/test-project/prisma/migrations/
+          cp -r prisma/migrations/20261010_add_primary_unique_indexes /tmp/test-project/prisma/migrations/
+          echo "Target migrations copied"
+          ls -la /tmp/test-project/prisma/migrations/
+
+      - name: Verify Prisma version
+        working-directory: /tmp/test-project
+        run: |
+          set -e
+          ${{ github.workspace }}/node_modules/.bin/prisma --version
+
+      - name: Run prisma migrate deploy
+        working-directory: /tmp/test-project
+        run: |
+          set -e
+          ${{ github.workspace }}/node_modules/.bin/prisma migrate deploy
+          echo "=== Migration history ==="
+          psql "$DATABASE_URL" -c "SELECT migration_name, applied_steps_count FROM _prisma_migrations ORDER BY started_at;"
+
+      - name: Assert — enum MediaStatus has 4 values
+        run: |
+          set -e
+          RESULT=$(psql "$DATABASE_URL" -tAc "
+            SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder)
+            FROM pg_enum
+            JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+            WHERE pg_type.typname = 'MediaStatus';
+          ")
+          echo "MediaStatus: $RESULT"
+          if [ "$RESULT" != "PENDING,APPROVING,APPROVED,REJECTED" ]; then
+            echo "ERROR: MediaStatus mismatch"
+            exit 1
+          fi
+          echo "OK: MediaStatus has 4 values"
+
+      - name: Assert — claim columns exist
+        run: |
+          set -e
+          COUNT=$(psql "$DATABASE_URL" -tAc "
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_name = 'MediaCandidate'
+              AND column_name IN ('claimToken', 'claimExpiresAt');
+          ")
+          echo "Claim columns found: $COUNT"
+          if [ "$COUNT" != "2" ]; then
+            echo "ERROR: claim columns missing"
+            exit 1
+          fi
+          echo "OK: both claim columns exist"
+
+      - name: Assert — 4 indexes exist
+        run: |
+          set -e
+          # 2 claim indexes
+          CLAIM_COUNT=$(psql "$DATABASE_URL" -tAc "
+            SELECT COUNT(*) FROM pg_indexes
+            WHERE tablename = 'MediaCandidate'
+              AND indexname IN ('MediaCandidate_status_claimExpiresAt_idx', 'MediaCandidate_claimToken_idx');
+          ")
+          echo "Claim indexes: $CLAIM_COUNT"
+          if [ "$CLAIM_COUNT" != "2" ]; then
+            echo "ERROR: claim indexes missing"
+            exit 1
+          fi
+          # 2 partial unique indexes
+          PARTIAL_COUNT=$(psql "$DATABASE_URL" -tAc "
+            SELECT COUNT(*) FROM pg_indexes
+            WHERE tablename = 'ProductMedia'
+              AND indexname IN ('ProductMedia_primary_product_unique', 'ProductMedia_primary_variant_unique');
+          ")
+          echo "Partial unique indexes: $PARTIAL_COUNT"
+          if [ "$PARTIAL_COUNT" != "2" ]; then
+            echo "ERROR: partial unique indexes missing"
+            exit 1
+          fi
+          echo "OK: all 4 indexes exist"
+
+      - name: Run 9 index scenarios
+        run: npx tsx scripts/test-index-scenarios.ts

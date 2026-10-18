@@ -1,0 +1,50 @@
+name: Test Storage Real (Test Project Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      NODE_ENV: test
+      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify secrets exist
+        run: |
+          if [ -z "$TEST_SUPABASE_URL" ]; then
+            echo "Secrets check failed: TEST_SUPABASE_URL missing"
+            exit 1
+          fi
+          if [ -z "$TEST_SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Secrets check failed: TEST_SUPABASE_SERVICE_ROLE_KEY missing"
+            exit 1
+          fi
+          echo "Secrets present"
+
+      - name: Verify URL is test project (strict)
+        run: node scripts/verify-test-project.mjs
+
+      - name: Remove old lockfile (CI only)
+        run: rm -f package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Run storage real test
+        run: npx tsx scripts/media/test-storage-real.ts
