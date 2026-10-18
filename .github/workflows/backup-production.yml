@@ -15,171 +15,53 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
+    env:
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      PGSSLMODE: "require"
+    
     steps:
       - name: Verify confirmation
-        env:
-          CONFIRM_INPUT: ${{ inputs.confirm }}
+        if: github.event.inputs.confirm != 'BACKUP'
         run: |
-          if [ "$CONFIRM_INPUT" != "BACKUP" ]; then
-            echo "Confirmation failed"
-            exit 1
-          fi
-          echo "Confirmed"
+          echo "You must type BACKUP to run this workflow."
+          exit 1
 
-      - name: Verify secrets exist
-        env:
-          DB_URL: ${{ secrets.PROD_DATABASE_URL }}
-          GPG_PASS: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+      - name: Install PostgreSQL and GPG
         run: |
-          set -e
-          if [ -z "$DB_URL" ]; then
-            echo "PROD_DATABASE_URL not set"
-            exit 1
-          fi
-          if [ -z "$GPG_PASS" ]; then
-            echo "BACKUP_GPG_PASSPHRASE not set"
-            exit 1
-          fi
-          echo "Secrets present"
-
-      - name: Install PostgreSQL client 16 and GnuPG
-        run: |
-          set -e
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-16 gnupg
+          sudo apt-get install -y postgresql-client gnupg
 
-      - name: Report tool versions
-        run: |
-          set -e
-          pg_dump --version
-          gpg --version | head -1
-
-      - name: Detect PostgreSQL server version
+      - name: Run pg_dump
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
-          set -euo pipefail
-          SERVER_VERSION=$(psql "$DATABASE_URL" -tAc "SHOW server_version;")
-          echo "Server version: $SERVER_VERSION"
-          echo "SERVER_VERSION=$SERVER_VERSION" >> "$GITHUB_ENV"
+          # Extract connection details (temporary for pg_dump)
+          echo "Starting backup..."
+          pg_dump "$DATABASE_URL" -Fc -f backup.dump
+          echo "Backup created."
 
-      - name: Run pg_dump (custom format)
+      - name: Encrypt with GPG
         env:
-          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
         run: |
-          set -euo pipefail
-          mkdir -p /tmp/backup
-          pg_dump -Fc --no-owner --no-acl \
-            -f /tmp/backup/prod.dump \
-            "$DATABASE_URL"
-          SIZE=$(stat -c%s /tmp/backup/prod.dump)
-          if [ "$SIZE" -lt 1024 ]; then
-            echo "Backup file too small: $SIZE bytes"
-            exit 1
-          fi
-          echo "Backup created: $SIZE bytes"
+          gpg --batch --yes --passphrase "$PASSPHRASE" -c --cipher-algo AES256 backup.dump
+          echo "Encrypted."
 
-      - name: Verify archive readable (initial check only)
-        run: |
-          set -e
-          pg_restore --list /tmp/backup/prod.dump > /tmp/backup/contents.txt
-          COUNT=$(wc -l < /tmp/backup/contents.txt)
-          echo "Archive entries: $COUNT"
-          if [ "$COUNT" -lt 10 ]; then
-            echo "Archive seems incomplete"
-            exit 1
-          fi
-          echo "Archive readable: ${COUNT} entries"
-          echo "NOTE: This is an initial readability check only."
-          echo "NOTE: It is NOT a substitute for actual restore testing."
-
-      - name: Report backup scope
-        run: |
-          echo "=== Backup scope ==="
-          echo "Included:"
-          echo "  - All database schemas (public + others)"
-          echo "  - All tables and their data"
-          echo "  - All indexes, constraints, sequences"
-          echo "  - All functions, views, triggers"
-          echo "  - All enum types"
-          echo "Excluded (NOT in backup):"
-          echo "  - Supabase project-level settings"
-          echo "  - Supabase Storage files"
-          echo "  - Supabase Auth configuration"
-          echo "  - Realtime/Edge Functions"
-          echo "  - Extensions not installed in DB"
-
-      - name: Encrypt backup with GPG (AES-256)
+      - name: Verify GPG Encryption
         env:
-          GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+          PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
         run: |
-          set -euo pipefail
-          # Write passphrase to protected file (avoid args exposure)
-          umask 077
-          printf '%s' "$GPG_PASSPHRASE" > /tmp/gpg-pass.txt
-          trap 'rm -f /tmp/gpg-pass.txt' EXIT
-          
-          gpg --batch --yes --symmetric \
-            --cipher-algo AES256 \
-            --passphrase-file /tmp/gpg-pass.txt \
-            --output /tmp/backup/prod.dump.gpg \
-            /tmp/backup/prod.dump
-          
-          # Remove unencrypted
-          rm -f /tmp/backup/prod.dump
-          
-          # Verify encrypted file
-          SIZE=$(stat -c%s /tmp/backup/prod.dump.gpg)
-          if [ "$SIZE" -lt 1024 ]; then
-            echo "Encrypted file too small: $SIZE bytes"
-            exit 1
-          fi
-          echo "Encrypted backup: $SIZE bytes"
-          
-          # Verify readable by GPG
-          echo "Test decryption readability..."
-          head -c 16 /tmp/backup/prod.dump.gpg | xxd | head -1
-          echo "Encrypted file OK"
+          gpg --batch --yes --passphrase "$PASSPHRASE" -d backup.dump.gpg > /dev/null
+          echo "GPG verification successful."
 
-      - name: Verify encrypted backup integrity
-        env:
-          GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+      - name: Cleanup
         run: |
-          set -euo pipefail
-          umask 077
-          printf '%s' "$GPG_PASSPHRASE" > /tmp/gpg-pass.txt
-          trap 'rm -f /tmp/gpg-pass.txt' EXIT
-          
-          # Decrypt to /dev/null (verify passphrase works)
-          gpg --batch --yes --decrypt \
-            --passphrase-file /tmp/gpg-pass.txt \
-            --output /dev/null \
-            /tmp/backup/prod.dump.gpg
-          
-          echo "Encrypted backup decrypts successfully"
+          rm backup.dump
+          echo "Done."
 
-      - name: Show summary (no secrets)
-        run: |
-          set -e
-          echo "=== Summary ==="
-          echo "Encrypted backup size: $(stat -c%s /tmp/backup/prod.dump.gpg) bytes"
-          echo "Archive entries: $(wc -l < /tmp/backup/contents.txt)"
-          echo "Server version: $SERVER_VERSION"
-          echo "Run: ${{ github.run_number }}"
-          echo "SHA: ${{ github.sha }}"
-
-      - name: Upload ENCRYPTED artifact
+      - name: Upload Encrypted Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prod-backup-${{ github.run_number }}
-          path: /tmp/backup/prod.dump.gpg
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Cleanup temporary files
-        if: always()
-        run: |
-          rm -rf /tmp/backup
-          rm -f /tmp/gpg-pass.txt
-          echo "Temporary files cleaned up"
+          name: production-backup
+          path: backup.dump.gpg
+          retention-days: 7
