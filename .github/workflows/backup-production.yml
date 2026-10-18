@@ -15,10 +15,7 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      NODE_OPTIONS: "--dns-result-order=ipv4first"
-      PGSSLMODE: "require"
-    
+
     steps:
       - name: Verify confirmation
         if: github.event.inputs.confirm != 'BACKUP'
@@ -29,15 +26,21 @@ jobs:
       - name: Install PostgreSQL and GPG
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client gnupg
+          sudo apt-get install -y postgresql-client gnupg dnsutils
 
       - name: Run pg_dump
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
-          # Extract connection details (temporary for pg_dump)
           echo "Starting backup..."
-          pg_dump "$DATABASE_URL" -Fc -f backup.dump
+          # تبدیل آدرس به IPv4 با استفاده از getent
+          IPV4_ADDR=$(getent ahostsv4 db.bcmhykiruwbgovaxnwzr.supabase.co | awk '{print $1}' | head -n 1)
+          echo "Connecting via IPv4: $IPV4_ADDR"
+          
+          # جایگزینی آدرس در کانکشن استرینگ
+          SAFE_URL=$(echo "$DATABASE_URL" | sed "s/db.bcmhykiruwbgovaxnwzr.supabase.co/$IPV4_ADDR/g")
+          
+          pg_dump "$SAFE_URL" -Fc -f backup.dump
           echo "Backup created."
 
       - name: Encrypt with GPG
