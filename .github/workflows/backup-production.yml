@@ -33,12 +33,10 @@ jobs:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           echo "Starting backup..."
-          # اضافه کردن sslmode=require به آدرس و عبور اجباری از IPv4 با استفاده از هاست‌های IPv4 سوپابیس
+          # تغییر خودکار پورت به 6543 (Transaction Pooler) برای عبور از IPv4
+          SAFE_URL=$(echo "$DATABASE_URL" | sed 's/:5432/:6543/g' | sed 's/db\.bcmhykiruwbgovaxnwzr\.supabase\.co/aws-0-ap-southeast-1.pooler.supabase.com/g')
           
-          # استخراج آدرس به صورت امن (بدون چاپ در لاگ)
-          SAFE_URL=$(echo "$DATABASE_URL" | sed 's/@db\.bcmhykiruwbgovaxnwzr\.supabase\.co/@db.bcmhykiruwbgovaxnwzr.supabase.co/g')
-          
-          # اجرای pg_dump با هاست IPv4
+          echo "Connecting to database via IPv4 Pooler..."
           pg_dump "$SAFE_URL" -Fc -f backup.dump
           echo "Backup created."
 
