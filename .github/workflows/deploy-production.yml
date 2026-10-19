@@ -1,4 +1,4 @@
-name: Deploy Production Migrations
+name: Deploy Production Migrations v3
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Verify confirmation
@@ -33,6 +33,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Remove broken lockfile
+        run: rm package-lock.json
+
       - name: Install Prisma CLI directly
         run: npm install -g prisma@6.19.3
 
@@ -41,7 +44,8 @@ jobs:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           echo "Starting migration deployment..."
-          SAFE_URL=$(echo "$DATABASE_URL" | sed 's/:5432/:6543/g' | sed 's/db\.bcmhykiruwbgovaxnwzr\.supabase\.co/aws-0-ap-southeast-1.pooler.supabase.com/g')
+          IPV4_ADDR=$(getent ahostsv4 db.bcmhykiruwbgovaxnwzr.supabase.co | awk '{print $1}' | head -n 1)
+          SAFE_URL=$(echo "$DATABASE_URL" | sed "s/db.bcmhykiruwbgovaxnwzr.supabase.co/$IPV4_ADDR/g" | sed 's/:6543/:5432/g')
           export DATABASE_URL="$SAFE_URL"
           
           prisma migrate deploy --schema prisma/schema.prisma
