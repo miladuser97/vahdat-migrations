@@ -1,0 +1,51 @@
+name: Deploy Production Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Verify confirmation
+        if: github.event.inputs.confirm != 'DEPLOY'
+        run: |
+          echo "You must type DEPLOY to run this workflow."
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: 'feature/stage-3b-migrations'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Prisma Version
+        run: npx prisma -v | grep "6.19.3" || (echo "Prisma version mismatch" && exit 1)
+
+      - name: Deploy Migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          echo "Starting migration deployment..."
+          SAFE_URL=$(echo "$DATABASE_URL" | sed 's/:5432/:6543/g' | sed 's/db\.bcmhykiruwbgovaxnwzr\.supabase\.co/aws-0-ap-southeast-1.pooler.supabase.com/g')
+          export DATABASE_URL="$SAFE_URL"
+          npx prisma migrate deploy --schema prisma/schema.prisma
+          echo "Deployment finished."
