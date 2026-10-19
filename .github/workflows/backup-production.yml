@@ -23,21 +23,23 @@ jobs:
           echo "You must type BACKUP to run this workflow."
           exit 1
 
-      - name: Install PostgreSQL and GPG
+      - name: Install PostgreSQL 17 and GPG
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client gnupg
+          sudo apt-get install -y postgresql-common gnupg
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
 
       - name: Run pg_dump
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: |
           echo "Starting backup..."
-          # تغییر خودکار پورت به 6543 (Transaction Pooler) برای عبور از IPv4
+          # تغییر خودکار پورت به 6543 (Transaction Pooler)
           SAFE_URL=$(echo "$DATABASE_URL" | sed 's/:5432/:6543/g' | sed 's/db\.bcmhykiruwbgovaxnwzr\.supabase\.co/aws-0-ap-southeast-1.pooler.supabase.com/g')
           
           echo "Connecting to database via IPv4 Pooler..."
-          pg_dump "$SAFE_URL" -Fc -f backup.dump
+          /usr/lib/postgresql/17/bin/pg_dump "$SAFE_URL" -Fc -f backup.dump
           echo "Backup created."
 
       - name: Encrypt with GPG
