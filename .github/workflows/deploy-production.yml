@@ -32,13 +32,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Check Prisma Version
-        run: npx prisma -v | grep "6.19.3" || (echo "Prisma version mismatch" && exit 1)
+      - name: Install Prisma CLI directly
+        run: npm install -g prisma@6.19.3
 
       - name: Deploy Migrations
         env:
@@ -48,5 +44,5 @@ jobs:
           SAFE_URL=$(echo "$DATABASE_URL" | sed 's/:5432/:6543/g' | sed 's/db\.bcmhykiruwbgovaxnwzr\.supabase\.co/aws-0-ap-southeast-1.pooler.supabase.com/g')
           export DATABASE_URL="$SAFE_URL"
           
-          npx prisma migrate deploy --schema prisma/schema.prisma
+          prisma migrate deploy --schema prisma/schema.prisma
           echo "Deployment finished."
