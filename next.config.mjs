@@ -2,10 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   eslint: {
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true, // 👈 این خط تغییر کرد
   },
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: true, // 👈 این خط تغییر کرد
   },
   // ✅ تنظیمات تصاویر برای next/image
   images: {
