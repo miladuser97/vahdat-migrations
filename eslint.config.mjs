@@ -10,7 +10,6 @@ const eslintConfig = [
     ignores: [".next/**", "node_modules/**", "out/**", "build/**", "next-env.d.ts"],
   },
   {
-    files: ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },
