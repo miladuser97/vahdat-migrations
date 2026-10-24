@@ -9,11 +9,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "لینک خالی است" }, { status: 400 });
     }
 
-    // 1. دانلود عکس با هدرهای شبیه مرورگر
+    // 1. دانلود عکس
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
       },
       redirect: "follow",
     });
@@ -28,13 +27,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `فایل معتبر نیست. نوع فایل: ${contentType}` }, { status: 400 });
     }
 
-    // 3. ذخیره در دیتابیس
+    // 3. ساخت یه محصول تستی (چون دیتابیس محصولی برای وصل کردن نداره)
+    const testProduct = await prisma.product.create({
+      data: {
+        title: "محصول تستی برای عکس",
+        slug: "test-product-" + Date.now(),
+        price: 1000,
+      }
+    });
+
+    // 4. ذخیره در دیتابیس و اتصال به محصول تستی
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
         previewUrl: url,
         status: "PENDING",
         source: "MANUAL",
+        productId: testProduct.id, // 👈 این خط مشکل رو حل می‌کنه
       },
     });
 
