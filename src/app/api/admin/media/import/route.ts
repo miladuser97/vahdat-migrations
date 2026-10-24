@@ -11,15 +11,17 @@ export async function POST(req: Request) {
 
     // 1. دانلود عکس
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`دانلود عکس ناموفق بود (کد ${response.status})`);
+    if (!response.ok) {
+      return NextResponse.json({ error: `دانلود عکس ناموفق بود. کد خطا: ${response.status}` }, { status: 400 });
+    }
     
-    // 2. بررسی نوع فایل (امنیت)
+    // 2. بررسی نوع فایل
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.startsWith("image/")) {
-      return NextResponse.json({ error: "فایل معتبر نیست" }, { status: 400 });
+      return NextResponse.json({ error: `فایل معتبر نیست. نوع فایل: ${contentType}` }, { status: 400 });
     }
 
-    // 3. ذخیره در دیتابیس (جدول MediaCandidate)
+    // 3. ذخیره در دیتابیس
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
@@ -32,6 +34,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Import Error:", error);
-    return NextResponse.json({ error: error.message || "خطا" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "خطای ناشناخته در دیتابیس" }, { status: 500 });
   }
 }
