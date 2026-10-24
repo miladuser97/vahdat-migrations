@@ -17,13 +17,15 @@ export function ImportMediaForm() {
       const res = await fetch("/api/admin/media/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: "test", url }), // موقت
+        body: JSON.stringify({ url }),
       });
+      const data = await res.json();
+      
       if (res.ok) {
         setMsg("با موفقیت اضافه شد.");
         setUrl("");
       } else {
-        setMsg("خطا در اضافه کردن.");
+        setMsg(`خطا: ${data.error || "نامشخص"}`); // 👈 اینجا خطای دقیق رو نشون می‌ده
       }
     } catch {
       setMsg("خطای شبکه.");
@@ -33,7 +35,7 @@ export function ImportMediaForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
+    <form onSubmit={handleSubmit} className="flex gap-2 items-center">
       <input
         type="text"
         value={url}
@@ -44,7 +46,7 @@ export function ImportMediaForm() {
       <button type="submit" disabled={loading || !url} className="bg-blue-600 text-white px-4 py-2 rounded">
         {loading ? "..." : "افزودن"}
       </button>
-      {msg && <span className="text-sm text-green-600">{msg}</span>}
+      {msg && <span className="text-sm font-bold text-red-600">{msg}</span>}
     </form>
   );
 }
