@@ -42,8 +42,8 @@ export async function POST(req: Request) {
         sourceUrl: url,
         previewUrl: url,
         status: "PENDING",
-        source: "MANUAL",
-        productId: testProduct.id, // 👈 این خط مشکل رو حل می‌کنه
+        source: "URL", // 👈 این خط تغییر کرد
+        productId: testProduct.id,
       },
     });
 
