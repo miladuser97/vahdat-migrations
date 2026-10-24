@@ -136,7 +136,6 @@ async function fetchWithIpPinning(
     ): void => {
       if (typeof callback === "function") {
         const family = pinnedIp.includes(":") ? 6 : 4;
-        // @ts-expect-error - Node type definitions differ across versions
         callback(null, pinnedIp, family);
       }
     };
