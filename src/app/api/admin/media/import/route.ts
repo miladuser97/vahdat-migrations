@@ -3,10 +3,10 @@ import { prisma } from "@/lib/server/prisma";
 
 export async function POST(req: Request) {
   try {
-    const { productId, url } = await req.json();
+    const { url } = await req.json();
 
-    if (!productId || !url) {
-      return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 });
+    if (!url) {
+      return NextResponse.json({ error: "لینک خالی است" }, { status: 400 });
     }
 
     // 1. دانلود عکس
@@ -19,13 +19,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "فایل معتبر نیست" }, { status: 400 });
     }
 
-    // 3. ذخیره در دیتابیس
-    await prisma.productMedia.create({
+    // 3. ذخیره در دیتابیس (جدول MediaCandidate)
+    await prisma.mediaCandidate.create({
       data: {
-        productId: productId === "test" ? "test" : productId, // موقت برای تست
-        url: url,
-        status: "APPROVED",
-        isPrimary: false,
+        sourceUrl: url,
+        previewUrl: url,
+        status: "PENDING",
+        source: "MANUAL",
       },
     });
 
