@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `فایل معتبر نیست. نوع فایل: ${contentType}` }, { status: 400 });
     }
 
-    // 3. ساخت یه محصول تستی (چون دیتابیس محصولی برای وصل کردن نداره)
+    // 3. ساخت محصول تستی
     const testProduct = await prisma.product.create({
       data: {
         title: "محصول تستی برای عکس",
@@ -36,13 +36,13 @@ export async function POST(req: Request) {
       }
     });
 
-    // 4. ذخیره در دیتابیس و اتصال به محصول تستی
+    // 4. ذخیره در دیتابیس با مقدار صحیح enum (UPLOAD)
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
         previewUrl: url,
         status: "PENDING",
-        source: "URL", // 👈 این خط تغییر کرد
+        source: "UPLOAD", // 👈 این مقدار از دیتابیس خونده شده و درسته
         productId: testProduct.id,
       },
     });
