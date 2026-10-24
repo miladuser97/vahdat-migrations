@@ -36,13 +36,13 @@ export async function POST(req: Request) {
       }
     });
 
-    // 4. ذخیره در دیتابیس با مقدار صحیح enum (UPLOAD)
+    // 4. ذخیره در دیتابیس با مقدار صحیح enum
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
         previewUrl: url,
         status: "PENDING",
-        source: "UPLOAD", // 👈 این مقدار از دیتابیس خونده شده و درسته
+        source: "MANUAL_UPLOAD", // 👈 مقدار درست از schema
         productId: testProduct.id,
       },
     });
