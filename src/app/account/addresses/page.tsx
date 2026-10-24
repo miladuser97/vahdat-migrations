@@ -16,7 +16,7 @@ export default async function AddressesPage() {
     return (
       <Card>
         <p className="text-body-sm text-error">
-          {result.error || "بارگذاری آدرس‌ها با خطا مواجه شد."}
+          {(result as any).error || "بارگذاری آدرس‌ها با خطا مواجه شد."}
         </p>
       </Card>
     );
