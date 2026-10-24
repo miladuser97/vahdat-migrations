@@ -1,52 +1,33 @@
-import type { Metadata } from "next";
-import { Card } from "@/components/ui/Card";
-import { getAllMediaAction } from "@/lib/server/media-actions";
-import { getAuthenticatedUser } from "@/lib/server/auth-utils";
-import { AdminMediaLibrary } from "@/features/admin/components/AdminMediaLibrary";
-
-export const dynamic = "force-dynamic";
-export const preferredRegion = "sin1";
-export const maxDuration = 30;
+import { Metadata } from "next";
+import Link from "next/link";
+import { ImportMediaForm } from "@/features/admin/components/ImportMediaForm";
+import { MediaGrid } from "@/features/admin/components/MediaGrid";
 
 export const metadata: Metadata = {
-  title: "کتابخانه‌ی عکس",
+  title: "کتابخانه عکس‌ها | پنل مدیریت",
 };
 
-export default async function AdminMediaPage() {
-  const [result, currentUser] = await Promise.all([
-    getAllMediaAction(),
-    getAuthenticatedUser(),
-  ]);
-
-  if (!result.success) {
-    return (
-      <div className="space-y-6">
-        <Card className="p-6">
-          <p className="text-body-sm text-error">
-            {result.error || "بارگذاری آرشیو عکس با خطا مواجه شد."}
-          </p>
-        </Card>
-      </div>
-    );
-  }
-
+export default function AdminMediaPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-h2 font-semibold text-text-primary">
-            کتابخانه‌ی عکس
-          </h2>
-          <p className="text-body-sm text-text-secondary mt-1">
-            آرشیو کامل عکس‌ها — جستجو، آپلود، و استفاده‌ی مجدد
-          </p>
-        </div>
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">کتابخانه عکس‌ها</h1>
+        <Link href="/admin" className="text-blue-600 hover:underline">
+          بازگشت به پنل
+        </Link>
       </div>
 
-      <AdminMediaLibrary
-        initialMedia={result.data}
-        currentUserRole={currentUser?.role || "customer"}
-      />
+      {/* بخش آپلود با لینک */}
+      <section className="bg-white p-6 rounded-lg shadow-sm border">
+        <h2 className="text-lg font-semibold mb-4">افزودن عکس از طریق لینک</h2>
+        <ImportMediaForm />
+      </section>
+
+      {/* گالری عکس‌های موجود */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">عکس‌های موجود</h2>
+        <MediaGrid />
+      </section>
     </div>
   );
 }
