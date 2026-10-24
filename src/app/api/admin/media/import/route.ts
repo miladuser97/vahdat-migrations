@@ -9,8 +9,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "لینک خالی است" }, { status: 400 });
     }
 
-    // 1. دانلود عکس با تنظیمات امنیتی
-    const response = await fetch(url, { redirect: 'follow' });
+    // 1. دانلود عکس با هدرهای شبیه مرورگر
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      },
+      redirect: "follow",
+    });
+
     if (!response.ok) {
       return NextResponse.json({ error: `دانلود عکس ناموفق بود. کد خطا: ${response.status}` }, { status: 400 });
     }
@@ -21,7 +28,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `فایل معتبر نیست. نوع فایل: ${contentType}` }, { status: 400 });
     }
 
-    // 3. ذخیره در دیتابیس (بدون وابستگی به Product)
+    // 3. ذخیره در دیتابیس
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
@@ -33,7 +40,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    // این خطا رو دقیق به فرانت‌اند برمی‌گردونیم
     return NextResponse.json({ error: error.message || "خطای دیتابیس" }, { status: 500 });
   }
 }
