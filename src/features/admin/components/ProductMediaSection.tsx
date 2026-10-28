@@ -11,6 +11,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [approvedMedia, setApprovedMedia] = useState<any[]>([]);
 
   async function fetchCandidates() {
     try {
@@ -19,13 +20,22 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
         const data = await res.json();
         setCandidates(data);
       }
-    } catch (err) {
-      console.error("خطا در گرفتن کاندیدها", err);
-    }
+    } catch (err) { console.error(err); }
+  }
+
+  async function fetchApproved() {
+    try {
+      const res = await fetch(`/api/admin/media/approved?productId=${productId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setApprovedMedia(data);
+      }
+    } catch (err) { console.error(err); }
   }
 
   useEffect(() => {
     fetchCandidates();
+    fetchApproved();
   }, [productId]);
 
   const handleImport = async () => {
@@ -55,7 +65,6 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
     }
   };
 
-  // تابع تایید یا رد کردن
   const handleAction = async (candidateId: string, action: "approve" | "reject") => {
     try {
       const res = await fetch(`/api/admin/media/${action}`, {
@@ -65,9 +74,29 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
       });
       if (res.ok) {
         setMsg(`✅ عکس با موفقیت ${action === "approve" ? "تایید" : "رد"} شد.`);
-        fetchCandidates(); // لیست رو رفرش کن
+        fetchCandidates();
+        if (action === "approve") fetchApproved(); // گالری اصلی رو رفرش کن
       } else {
-        setMsg(`❌ خطا در ${action === "approve" ? "تایید" : "رد"} عکس.`);
+        setMsg(`❌ خطا در عملیات.`);
+      }
+    } catch (err) {
+      setMsg("❌ خطای شبکه.");
+    }
+  };
+
+  const handleDeleteMedia = async (mediaId: string) => {
+    if (!confirm("آیا از حذف این عکس مطمئنید؟")) return;
+    try {
+      const res = await fetch(`/api/admin/media/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId }),
+      });
+      if (res.ok) {
+        setMsg("✅ عکس از گالری حذف شد.");
+        fetchApproved();
+      } else {
+        setMsg("❌ خطا در حذف عکس.");
       }
     } catch (err) {
       setMsg("❌ خطای شبکه.");
@@ -75,7 +104,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+    <div className="space-y-6 p-4 border rounded-lg bg-gray-50">
       <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
       
       <div className="flex gap-2 items-center">
@@ -97,8 +126,31 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
       </div>
       {msg && <p className="text-sm font-bold">{msg}</p>}
 
+      {/* گالری عکس‌های تایید شده */}
       <div className="mt-4">
-        <h4 className="font-semibold text-sm mb-2">عکس‌های در انتظار تایید:</h4>
+        <h4 className="font-semibold text-sm mb-2 text-green-700">✅ عکس‌های اصلی محصول:</h4>
+        {approvedMedia.length === 0 ? (
+          <p className="text-xs text-gray-500">هیچ عکسی هنوز تایید نشده است.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {approvedMedia.map((m) => (
+              <div key={m.id} className="border rounded p-1 flex flex-col items-center bg-white">
+                <img src={m.media.url} alt="approved" className="w-full h-20 object-cover rounded mb-1" />
+                <button
+                  onClick={() => handleDeleteMedia(m.id)}
+                  className="bg-red-500 text-white text-xs py-1 px-2 rounded w-full"
+                >
+                  حذف
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* لیست کاندیدها */}
+      <div className="mt-4">
+        <h4 className="font-semibold text-sm mb-2 text-blue-700">⏳ عکس‌های در انتظار تایید:</h4>
         {candidates.length === 0 ? (
           <p className="text-xs text-gray-500">هیچ عکسی در انتظار تایید نیست.</p>
         ) : (
