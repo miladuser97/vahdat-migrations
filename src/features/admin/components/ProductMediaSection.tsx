@@ -151,16 +151,20 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           {approvedMedia.length === 0 ? (
             <p className="text-xs text-gray-500">هیچ عکسی هنوز تایید نشده است.</p>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-4">
               {approvedMedia.map((m) => (
-                <div key={m.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary relative group">
-                  {/* 👇 اینجا کلاس‌های group-hover اضافه شد */}
-                  <div className="w-full h-20 overflow-hidden rounded mb-1 relative">
+                <div key={m.id} className="border rounded p-2 flex flex-col items-center bg-card text-text-primary relative group">
+                  {/* کادر نمایش عکس */}
+                  <div className="w-full h-24 relative mb-2">
                     <img 
                       src={m.media.url} 
                       alt="approved" 
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:absolute group-hover:shadow-2xl" 
+                      className="w-full h-full object-cover rounded cursor-pointer"
                     />
+                    {/* 👇 باکس بزرگ‌نمایی شناور (فقط موقع هاور) */}
+                    <div className="absolute top-0 left-full ml-2 hidden group-hover:block z-50 w-64 h-64 border-4 border-white shadow-2xl rounded-lg overflow-hidden bg-white">
+                      <img src={m.media.url} alt="zoom" className="w-full h-full object-contain" />
+                    </div>
                   </div>
                   
                   {m.variant && (
@@ -188,19 +192,22 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           {candidates.length === 0 ? (
             <p className="text-xs text-gray-500">هیچ عکسی در انتظار تایید نیست.</p>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-4">
               {candidates.map((c) => (
-                <div key={c.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary relative group">
-                  {/* 👇 اینجا هم کلاس‌های group-hover اضافه شد */}
-                  <div className="w-full h-20 overflow-hidden rounded mb-1 relative">
+                <div key={c.id} className="border rounded p-2 flex flex-col items-center bg-card text-text-primary relative group">
+                  <div className="w-full h-24 relative mb-2">
                     <img 
                       src={c.previewUrl} 
                       alt="candidate" 
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:absolute group-hover:shadow-2xl" 
+                      className="w-full h-full object-cover rounded cursor-pointer"
                     />
+                    {/* 👇 باکس بزرگ‌نمایی شناور برای کاندیدها */}
+                    <div className="absolute top-0 left-full ml-2 hidden group-hover:block z-50 w-64 h-64 border-4 border-white shadow-2xl rounded-lg overflow-hidden bg-white">
+                      <img src={c.previewUrl} alt="zoom" className="w-full h-full object-contain" />
+                    </div>
                   </div>
                   
-                  <div className="flex gap-1 w-full z-10 relative">
+                  <div className="flex gap-1 w-full">
                     <button
                       type="button"
                       onClick={() => handleAction(c.id, "approve")}
