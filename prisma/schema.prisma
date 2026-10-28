@@ -264,6 +264,7 @@ model ProductVariant {
   updatedAt      DateTime @updatedAt
 
   media          ProductMedia[]
+  mediaCandidates MediaCandidate[] // 👈 این خط اضافه شد
 
   @@unique([productId, slug])
   @@index([productId])
@@ -594,6 +595,8 @@ model MediaCandidate {
   id             String        @id @default(uuid())
   productId      String
   product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   source         MediaSource
   sourceId       String?
   sourceUrl      String
