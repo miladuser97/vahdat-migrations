@@ -11,8 +11,11 @@ export async function GET(req: Request) {
     }
 
     const mediaList = await prisma.productMedia.findMany({
-      where: { productId },
-      include: { media: true },
+      where: { productId, status: "APPROVED" },
+      include: { 
+        media: true,
+        variant: true // 👈 این خط اضافه شد تا اطلاعات رنگ رو بیاره
+      },
       orderBy: { displayOrder: "asc" },
     });
 
