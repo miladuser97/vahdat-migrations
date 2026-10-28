@@ -84,7 +84,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="لینک عکس را وارد کنید..."
-          className="border p-2 rounded flex-1"
+          className="border p-2 rounded flex-1 bg-background text-text-primary focus:ring-primary focus:border-primary"
         />
         <button
           type="button"
