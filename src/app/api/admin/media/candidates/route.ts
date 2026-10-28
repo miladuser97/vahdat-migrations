@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const productId = searchParams.get("productId");
+
+    const whereClause = productId 
+      ? { status: "PENDING" as const, productId } 
+      : { status: "PENDING" as const };
+
     const candidates = await prisma.mediaCandidate.findMany({
-      where: { status: "PENDING" },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
