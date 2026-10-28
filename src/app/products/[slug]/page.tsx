@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Tabs } from "@/components/ui/Tabs";
 import { AutoBreadcrumb } from "@/components/shared/AutoBreadcrumb";
 import { FAQList, type FAQListItem } from "@/components/shared/FAQList";
-import { ProductImage } from "@/features/products/components/ProductImage";
+import { ProductGallery } from "@/features/products/components/ProductGallery"; // 👈 تغییر کرد
 import { Price } from "@/features/products/components/Price";
 import { ProductActions } from "@/features/products/components/ProductActions";
 import { ProductMeta } from "@/features/products/components/ProductMeta";
@@ -116,12 +116,8 @@ export default async function ProductDetailsPage({ params }: Props) {
 
       <Section>
         <div className="grid gap-lg lg:grid-cols-2">
-          <ProductImage
-            image={product.thumbnail}
-            images={product.images}
-            alt={product.title}
-            className="border border-border"
-          />
+          {/* 👇 این بخش تغییر کرد */}
+          <ProductGallery slug={slug} fallbackImage={product.thumbnail} />
 
           <div className="lg:sticky lg:top-lg lg:self-start">
             <Card className="flex flex-col gap-md">
