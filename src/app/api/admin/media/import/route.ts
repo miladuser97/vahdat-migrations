@@ -3,10 +3,10 @@ import { prisma } from "@/lib/server/prisma";
 
 export async function POST(req: Request) {
   try {
-    const { url } = await req.json();
+    const { url, productId } = await req.json();
 
-    if (!url) {
-      return NextResponse.json({ error: "لینک خالی است" }, { status: 400 });
+    if (!url || !productId) {
+      return NextResponse.json({ error: "لینک یا شناسه محصول خالی است" }, { status: 400 });
     }
 
     // 1. دانلود عکس
@@ -27,23 +27,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `فایل معتبر نیست. نوع فایل: ${contentType}` }, { status: 400 });
     }
 
-    // 3. ساخت محصول تستی
-    const testProduct = await prisma.product.create({
-      data: {
-        title: "محصول تستی برای عکس",
-        slug: "test-product-" + Date.now(),
-        price: 1000,
-      }
-    });
-
-    // 4. ذخیره در دیتابیس با مقدار صحیح enum
+    // 3. ذخیره در دیتابیس با productId واقعی
     await prisma.mediaCandidate.create({
       data: {
         sourceUrl: url,
         previewUrl: url,
         status: "PENDING",
-        source: "MANUAL_UPLOAD", // 👈 مقدار درست از schema
-        productId: testProduct.id,
+        source: "MANUAL_UPLOAD",
+        productId: productId, // 👈 از productId واقعی استفاده می‌کنیم
       },
     });
 
