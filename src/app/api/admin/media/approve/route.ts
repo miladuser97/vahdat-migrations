@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         mediaId: asset.id,
         status: "APPROVED",
         isPrimary: false,
-        variantId: candidate.variantId, // 👈 انتقال رنگ به گالری
+        variantId: candidate.variantId, // 👈 انتقال رنگ
       },
     });
 
