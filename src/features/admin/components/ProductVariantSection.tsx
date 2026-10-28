@@ -15,10 +15,7 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
   async function fetchVariants() {
     try {
       const res = await fetch(`/api/admin/products/variants?productId=${productId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setVariants(data);
-      }
+      if (res.ok) setVariants(await res.json());
     } catch (err) { console.error(err); }
   }
 
@@ -42,7 +39,25 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
         setColor("");
         fetchVariants();
       } else {
-        setMsg("❌ خطا در اضافه کردن رنگ.");
+        const data = await res.json();
+        setMsg(`❌ خطا: ${data.error || "نامشخص"}`);
+      }
+    } catch (err) {
+      setMsg("❌ خطای شبکه.");
+    }
+  };
+
+  const handleDelete = async (variantId: string) => {
+    if (!confirm("آیا از حذف این رنگ مطمئنید؟")) return;
+    try {
+      const res = await fetch(`/api/admin/products/variants?variantId=${variantId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMsg("✅ رنگ حذف شد.");
+        fetchVariants();
+      } else {
+        setMsg("❌ خطا در حذف رنگ.");
       }
     } catch (err) {
       setMsg("❌ خطای شبکه.");
@@ -58,7 +73,7 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
           type="text"
           value={color}
           onChange={(e) => setColor(e.target.value)}
-          placeholder="نام رنگ (مثلاً: مشکی)"
+          placeholder="نام رنگ (مثلاً: سفید)"
           className="border p-2 rounded bg-background text-text-primary flex-1"
         />
         <input
@@ -85,8 +100,20 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
         ) : (
           variants.map((v) => (
             <div key={v.id} className="flex items-center gap-2 border rounded-full px-3 py-1 bg-card text-text-primary">
-              <span className="w-4 h-4 rounded-full border" style={{ backgroundColor: v.colorHex }}></span>
+              {/* اگه رنگ سفید بود، یه حاشیه خاکستری دور دایره بذار که دیده بشه */}
+              <span 
+                className="w-4 h-4 rounded-full border border-gray-400" 
+                style={{ backgroundColor: v.colorHex }}
+              ></span>
               <span className="text-sm">{v.color}</span>
+              <button
+                type="button"
+                onClick={() => handleDelete(v.id)}
+                className="text-red-500 hover:text-red-700 mr-2"
+                title="حذف رنگ"
+              >
+                ✕
+              </button>
             </div>
           ))
         )}
