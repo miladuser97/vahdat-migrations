@@ -9,7 +9,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 });
     }
 
-    // 1. پیدا کردن کاندید
     const candidate = await prisma.mediaCandidate.findUnique({
       where: { id: candidateId },
     });
@@ -18,29 +17,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "کاندید یافت نشد" }, { status: 404 });
     }
 
-    // 2. ساخت MediaAsset (عکس اصلی)
     const asset = await prisma.mediaAsset.create({
       data: {
         url: candidate.previewUrl,
-        storagePath: candidate.previewUrl, // موقت
+        storagePath: candidate.previewUrl,
         filename: "candidate-" + candidate.id,
-        mimeType: "image/jpeg", // موقت
+        mimeType: "image/jpeg",
         size: 0,
         source: "MANUAL_UPLOAD",
       },
     });
 
-    // 3. ساخت ProductMedia (اتصال عکس به محصول)
     await prisma.productMedia.create({
       data: {
         productId: productId,
         mediaId: asset.id,
         status: "APPROVED",
         isPrimary: false,
+        variantId: candidate.variantId, // 👈 انتقال رنگ به گالری
       },
     });
 
-    // 4. آپدیت وضعیت کاندید
     await prisma.mediaCandidate.update({
       where: { id: candidateId },
       data: { status: "APPROVED" },
