@@ -55,6 +55,25 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
     }
   };
 
+  // تابع تایید یا رد کردن
+  const handleAction = async (candidateId: string, action: "approve" | "reject") => {
+    try {
+      const res = await fetch(`/api/admin/media/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId, productId }),
+      });
+      if (res.ok) {
+        setMsg(`✅ عکس با موفقیت ${action === "approve" ? "تایید" : "رد"} شد.`);
+        fetchCandidates(); // لیست رو رفرش کن
+      } else {
+        setMsg(`❌ خطا در ${action === "approve" ? "تایید" : "رد"} عکس.`);
+      }
+    } catch (err) {
+      setMsg("❌ خطای شبکه.");
+    }
+  };
+
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
       <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
@@ -68,8 +87,8 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           className="border p-2 rounded flex-1"
         />
         <button
-          type="button" // 👈 این خط تغییر کرد (به جای submit)
-          onClick={handleImport} // 👈 این خط اضافه شد
+          type="button"
+          onClick={handleImport}
           disabled={loading || !url}
           className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
@@ -85,8 +104,22 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {candidates.map((c) => (
-              <div key={c.id} className="border rounded p-1">
-                <img src={c.previewUrl} alt="candidate" className="w-full h-20 object-cover rounded" />
+              <div key={c.id} className="border rounded p-1 flex flex-col items-center">
+                <img src={c.previewUrl} alt="candidate" className="w-full h-20 object-cover rounded mb-1" />
+                <div className="flex gap-1 w-full">
+                  <button
+                    onClick={() => handleAction(c.id, "approve")}
+                    className="flex-1 bg-green-500 text-white text-xs py-1 rounded"
+                  >
+                    تایید
+                  </button>
+                  <button
+                    onClick={() => handleAction(c.id, "reject")}
+                    className="flex-1 bg-red-500 text-white text-xs py-1 rounded"
+                  >
+                    رد
+                  </button>
+                </div>
               </div>
             ))}
           </div>
