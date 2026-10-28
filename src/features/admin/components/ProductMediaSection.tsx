@@ -110,10 +110,8 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* بخش مدیریت رنگ‌ها */}
       <ProductVariantSection productId={productId} />
 
-      {/* بخش عکس‌ها */}
       <div className="space-y-6 p-4 border rounded-lg bg-background">
         <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
         
@@ -155,10 +153,22 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {approvedMedia.map((m) => (
-                <div key={m.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary relative">
-                  <img src={m.media.url} alt="approved" className="w-full h-20 object-cover rounded mb-1" />
+                <div key={m.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary relative group">
+                  {/* 👇 اینجا کلاس‌های group-hover اضافه شد */}
+                  <div className="w-full h-20 overflow-hidden rounded mb-1 relative">
+                    <img 
+                      src={m.media.url} 
+                      alt="approved" 
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:absolute group-hover:shadow-2xl" 
+                    />
+                  </div>
+                  
                   {m.variant && (
-                    <span className="absolute top-1 right-1 w-4 h-4 rounded-full border border-white shadow" style={{ backgroundColor: m.variant.colorHex }} title={m.variant.color}></span>
+                    <span 
+                      className="absolute top-1 right-1 w-4 h-4 rounded-full border border-white shadow z-10" 
+                      style={{ backgroundColor: m.variant.colorHex }} 
+                      title={m.variant.color}
+                    ></span>
                   )}
                   <button
                     type="button"
@@ -180,9 +190,17 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {candidates.map((c) => (
-                <div key={c.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary">
-                  <img src={c.previewUrl} alt="candidate" className="w-full h-20 object-cover rounded mb-1" />
-                  <div className="flex gap-1 w-full">
+                <div key={c.id} className="border rounded p-1 flex flex-col items-center bg-card text-text-primary relative group">
+                  {/* 👇 اینجا هم کلاس‌های group-hover اضافه شد */}
+                  <div className="w-full h-20 overflow-hidden rounded mb-1 relative">
+                    <img 
+                      src={c.previewUrl} 
+                      alt="candidate" 
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-150 group-hover:z-50 group-hover:absolute group-hover:shadow-2xl" 
+                    />
+                  </div>
+                  
+                  <div className="flex gap-1 w-full z-10 relative">
                     <button
                       type="button"
                       onClick={() => handleAction(c.id, "approve")}
