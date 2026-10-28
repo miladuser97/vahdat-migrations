@@ -1,18 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { useState, useEffect } from "react";
 
-export function ProductMediaSection({ productId }: { productId: string }) {
+interface ProductMediaSectionProps {
+  productId: string;
+}
+
+export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [msg, setMsg] = useState("");
+  const [candidates, setCandidates] = useState<any[]>([]);
 
-  const handleImport = async () => {
+  // تابع گرفتن کاندیدها
+  async function fetchCandidates() {
+    try {
+      const res = await fetch(`/api/admin/media/candidates?productId=${productId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCandidates(data);
+      }
+    } catch (err) {
+      console.error("خطا در گرفتن کاندیدها", err);
+    }
+  }
+
+  // بارگذاری اولیه
+  useEffect(() => {
+    fetchCandidates();
+  }, [productId]);
+
+  const handleImport = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!url) return;
     setLoading(true);
-    setMessage("");
+    setMsg("");
+
     try {
       const res = await fetch("/api/admin/media/import", {
         method: "POST",
@@ -20,14 +43,16 @@ export function ProductMediaSection({ productId }: { productId: string }) {
         body: JSON.stringify({ productId, url }),
       });
       const data = await res.json();
+
       if (res.ok) {
-        setMessage("عکس با موفقیت اضافه شد.");
+        setMsg("✅ عکس با موفقیت به لیست کاندیدها اضافه شد.");
         setUrl("");
+        fetchCandidates(); // لیست رو رفرش کن
       } else {
-        setMessage(data.error || "خطا در اضافه کردن عکس.");
+        setMsg(`❌ خطا: ${data.error || "نامشخص"}`);
       }
     } catch (err) {
-      setMessage("خطای شبکه.");
+      setMsg("❌ خطای شبکه.");
     } finally {
       setLoading(false);
     }
@@ -35,19 +60,42 @@ export function ProductMediaSection({ productId }: { productId: string }) {
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-      <h3 className="font-bold text-lg">افزودن عکس با لینک</h3>
-      <div className="flex gap-2">
-        <Input
-          placeholder="لینک عکس را اینجا وارد کنید..."
+      <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
+      
+      {/* فرم آپلود با لینک */}
+      <form onSubmit={handleImport} className="flex gap-2 items-center">
+        <input
+          type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="flex-1"
+          placeholder="لینک عکس را وارد کنید..."
+          className="border p-2 rounded flex-1"
         />
-        <Button onClick={handleImport} disabled={loading || !url}>
-          {loading ? "در حال دانلود..." : "افزودن"}
-        </Button>
+        <button
+          type="submit"
+          disabled={loading || !url}
+          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+        >
+          {loading ? "..." : "افزودن"}
+        </button>
+      </form>
+      {msg && <p className="text-sm font-bold">{msg}</p>}
+
+      {/* نمایش کاندیدها */}
+      <div className="mt-4">
+        <h4 className="font-semibold text-sm mb-2">عکس‌های در انتظار تایید:</h4>
+        {candidates.length === 0 ? (
+          <p className="text-xs text-gray-500">هیچ عکسی در انتظار تایید نیست.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {candidates.map((c) => (
+              <div key={c.id} className="border rounded p-1">
+                <img src={c.previewUrl} alt="candidate" className="w-full h-20 object-cover rounded" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      {message && <p className="text-sm text-blue-600">{message}</p>}
     </div>
   );
 }
