@@ -12,7 +12,6 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
   const [msg, setMsg] = useState("");
   const [candidates, setCandidates] = useState<any[]>([]);
 
-  // تابع گرفتن کاندیدها
   async function fetchCandidates() {
     try {
       const res = await fetch(`/api/admin/media/candidates?productId=${productId}`);
@@ -25,13 +24,11 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
     }
   }
 
-  // بارگذاری اولیه
   useEffect(() => {
     fetchCandidates();
   }, [productId]);
 
-  const handleImport = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleImport = async () => {
     if (!url) return;
     setLoading(true);
     setMsg("");
@@ -47,7 +44,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
       if (res.ok) {
         setMsg("✅ عکس با موفقیت به لیست کاندیدها اضافه شد.");
         setUrl("");
-        fetchCandidates(); // لیست رو رفرش کن
+        fetchCandidates();
       } else {
         setMsg(`❌ خطا: ${data.error || "نامشخص"}`);
       }
@@ -62,8 +59,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
     <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
       <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
       
-      {/* فرم آپلود با لینک */}
-      <form onSubmit={handleImport} className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center">
         <input
           type="text"
           value={url}
@@ -72,16 +68,16 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
           className="border p-2 rounded flex-1"
         />
         <button
-          type="submit"
+          type="button" // 👈 این خط تغییر کرد (به جای submit)
+          onClick={handleImport} // 👈 این خط اضافه شد
           disabled={loading || !url}
           className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {loading ? "..." : "افزودن"}
         </button>
-      </form>
+      </div>
       {msg && <p className="text-sm font-bold">{msg}</p>}
 
-      {/* نمایش کاندیدها */}
       <div className="mt-4">
         <h4 className="font-semibold text-sm mb-2">عکس‌های در انتظار تایید:</h4>
         {candidates.length === 0 ? (
