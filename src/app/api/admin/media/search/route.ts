@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     const searchHtml = await searchRes.text();
 
-    // 2. پیدا کردن اولین لینک محصول (product-ID)
+    // 2. پیدا کردن لینک محصول (product-ID)
     const productLinkRegex = /href="(\/product-\d+\/[^"]+)"/;
     const productLinkMatch = searchHtml.match(productLinkRegex);
 
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
     const productHtml = await productRes.text();
 
     // 4. پیدا کردن لینک عکس‌ها (با ساختار دقیق تکنولایف)
+    // این regex دنبال urlهایی می‌گرده که با /image/ شروع می‌شن و به png یا jpg ختم می‌شن
     const imageRegex = /https:\/\/www\.technolife\.com\/image\/[^\s"']+\.(?:png|jpg|jpeg)/g;
     const matches = productHtml.match(imageRegex);
     
