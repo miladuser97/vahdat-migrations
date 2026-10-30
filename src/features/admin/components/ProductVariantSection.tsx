@@ -9,6 +9,7 @@ interface ProductVariantSectionProps {
 export function ProductVariantSection({ productId }: ProductVariantSectionProps) {
   const [color, setColor] = useState("");
   const [colorHex, setColorHex] = useState("#000000");
+  const [inventoryCount, setInventoryCount] = useState(0); // 👈 جدید
   const [variants, setVariants] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
 
@@ -31,12 +32,13 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
       const res = await fetch(`/api/admin/products/variants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, color, colorHex }),
+        body: JSON.stringify({ productId, color, colorHex, inventoryCount }), // 👈 ارسال موجودی
       });
 
       if (res.ok) {
         setMsg("✅ رنگ با موفقیت اضافه شد.");
         setColor("");
+        setInventoryCount(0);
         fetchVariants();
       } else {
         const data = await res.json();
@@ -83,6 +85,14 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
           className="h-10 w-12 cursor-pointer rounded border"
           title="انتخاب رنگ"
         />
+        <input
+          type="number"
+          value={inventoryCount}
+          onChange={(e) => setInventoryCount(Number(e.target.value))}
+          placeholder="موجودی"
+          className="border p-2 rounded bg-background text-text-primary w-24"
+          min="0"
+        />
         <button
           type="button"
           onClick={handleAdd}
@@ -100,12 +110,11 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
         ) : (
           variants.map((v) => (
             <div key={v.id} className="flex items-center gap-2 border rounded-full px-3 py-1 bg-card text-text-primary">
-              {/* اگه رنگ سفید بود، یه حاشیه خاکستری دور دایره بذار که دیده بشه */}
-              <span 
-                className="w-4 h-4 rounded-full border border-gray-400" 
-                style={{ backgroundColor: v.colorHex }}
-              ></span>
+              <span className="w-4 h-4 rounded-full border border-gray-400" style={{ backgroundColor: v.colorHex }}></span>
               <span className="text-sm">{v.color}</span>
+              <span className={`text-xs font-bold ${v.inventoryCount > 0 ? "text-green-600" : "text-red-600"}`}>
+                ({v.inventoryCount} عدد)
+              </span>
               <button
                 type="button"
                 onClick={() => handleDelete(v.id)}
