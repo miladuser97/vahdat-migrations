@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         slug,
         sku,
         price: 0,
-        inventoryCount: inventoryCount || 0, // 👈 ذخیره موجودی
+        inventoryCount: inventoryCount || 0,
       },
     });
 
@@ -74,6 +74,25 @@ export async function DELETE(req: Request) {
     });
 
     return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "خطا" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const { variantId, inventoryCount } = await req.json();
+
+    if (!variantId || inventoryCount === undefined) {
+      return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 });
+    }
+
+    const updated = await prisma.productVariant.update({
+      where: { id: variantId },
+      data: { inventoryCount },
+    });
+
+    return NextResponse.json({ success: true, variant: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "خطا" }, { status: 500 });
   }
