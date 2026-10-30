@@ -9,9 +9,13 @@ interface ProductVariantSectionProps {
 export function ProductVariantSection({ productId }: ProductVariantSectionProps) {
   const [color, setColor] = useState("");
   const [colorHex, setColorHex] = useState("#000000");
-  const [inventoryCount, setInventoryCount] = useState(0); // 👈 جدید
+  const [inventoryCount, setInventoryCount] = useState(0);
   const [variants, setVariants] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
+  
+  // State برای ویرایش
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState(0);
 
   async function fetchVariants() {
     try {
@@ -32,7 +36,7 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
       const res = await fetch(`/api/admin/products/variants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, color, colorHex, inventoryCount }), // 👈 ارسال موجودی
+        body: JSON.stringify({ productId, color, colorHex, inventoryCount }),
       });
 
       if (res.ok) {
@@ -60,6 +64,26 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
         fetchVariants();
       } else {
         setMsg("❌ خطا در حذف رنگ.");
+      }
+    } catch (err) {
+      setMsg("❌ خطای شبکه.");
+    }
+  };
+
+  // تابع جدید برای ویرایش موجودی
+  const handleUpdateInventory = async (variantId: string) => {
+    try {
+      const res = await fetch(`/api/admin/products/variants`, {
+        method: "PUT", // 👈 متد جدید
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId, inventoryCount: editValue }),
+      });
+      if (res.ok) {
+        setMsg("✅ موجودی به‌روزرسانی شد.");
+        setEditingId(null);
+        fetchVariants();
+      } else {
+        setMsg("❌ خطا در به‌روزرسانی موجودی.");
       }
     } catch (err) {
       setMsg("❌ خطای شبکه.");
@@ -112,9 +136,30 @@ export function ProductVariantSection({ productId }: ProductVariantSectionProps)
             <div key={v.id} className="flex items-center gap-2 border rounded-full px-3 py-1 bg-card text-text-primary">
               <span className="w-4 h-4 rounded-full border border-gray-400" style={{ backgroundColor: v.colorHex }}></span>
               <span className="text-sm">{v.color}</span>
-              <span className={`text-xs font-bold ${v.inventoryCount > 0 ? "text-green-600" : "text-red-600"}`}>
-                ({v.inventoryCount} عدد)
-              </span>
+              
+              {/* بخش ویرایش موجودی */}
+              {editingId === v.id ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={editValue}
+                    onChange={(e) => setEditValue(Number(e.target.value))}
+                    className="w-16 border rounded px-1 text-sm bg-background text-text-primary"
+                    min="0"
+                  />
+                  <button onClick={() => handleUpdateInventory(v.id)} className="text-green-600 text-xs font-bold">ذخیره</button>
+                  <button onClick={() => setEditingId(null)} className="text-gray-500 text-xs">لغو</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setEditingId(v.id); setEditValue(v.inventoryCount); }}
+                  className={`text-xs font-bold ${v.inventoryCount > 0 ? "text-green-600" : "text-red-600"}`}
+                  title="برای ویرایش کلیک کنید"
+                >
+                  ({v.inventoryCount} عدد)
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleDelete(v.id)}
