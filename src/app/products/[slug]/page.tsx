@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Tabs } from "@/components/ui/Tabs";
 import { AutoBreadcrumb } from "@/components/shared/AutoBreadcrumb";
 import { FAQList, type FAQListItem } from "@/components/shared/FAQList";
-import { ProductGallery } from "@/features/products/components/ProductGallery"; // 👈 تغییر کرد
+import { ProductGallery } from "@/features/products/components/ProductGallery";
 import { Price } from "@/features/products/components/Price";
 import { ProductActions } from "@/features/products/components/ProductActions";
 import { ProductMeta } from "@/features/products/components/ProductMeta";
@@ -20,6 +20,8 @@ import { getProductReviewsAction } from "@/lib/server/commerce-actions";
 import { getAuthenticatedUser } from "@/lib/server/auth-utils";
 import { SITE_FEATURES } from "@/config/features";
 import { STORE_NOT_READY_MESSAGE } from "@/constants/messages";
+import { prisma } from "@/lib/server/prisma";
+import { VariantSelector } from "@/features/products/components/VariantSelector"; // 👈 اضافه شد
 
 export const dynamic = 'force-dynamic';
 
@@ -30,21 +32,10 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-
-  if (!product) {
-    return {
-      title: "محصول یافت نشد",
-    };
-  }
-
+  if (!product) return { title: "محصول یافت نشد" };
   return {
     title: product.title,
     description: product.description || product.shortDescription || STORE_NOT_READY_MESSAGE,
-    openGraph: {
-      title: product.title,
-      description: product.description || product.shortDescription,
-      type: "website",
-    },
   };
 }
 
@@ -52,62 +43,28 @@ export default async function ProductDetailsPage({ params }: Props) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
 
-  if (!product) {
-    notFound();
-  }
+  if (!product) notFound();
+
+  // گرفتن رنگ‌ها از دیتابیس
+  const variants = await prisma.productVariant.findMany({
+    where: { productId: product.id },
+  });
 
   const reviewsResult = await getProductReviewsAction(product.id);
   const reviews = reviewsResult.success ? reviewsResult.reviews : [];
-
   const user = await getAuthenticatedUser();
 
   const relatedProductsResults = await getProducts({ category: product.categorySlug });
-  const relatedProducts = relatedProductsResults.filter(
-    (p) => p.id !== product.id,
-  );
+  const relatedProducts = relatedProductsResults.filter((p) => p.id !== product.id);
 
-  const recentlyViewedProducts: Product[] = [];
-  const compareProducts: Product[] = [];
-  const productFAQItems: FAQListItem[] = [];
-
-  // ✅ چک کن تخفیف فعاله یا نه
   const hasActiveDiscount =
     product.discountPrice !== undefined &&
     product.price !== undefined &&
     product.discountPrice < product.price &&
     product.discountEndsAt !== undefined;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    description: product.description || product.shortDescription,
-    brand: {
-      "@type": "Brand",
-      name: product.brand,
-    },
-    offers: {
-      "@type": "Offer",
-      price: product.price ? product.price * 10 : undefined,
-      priceCurrency: "IRR",
-      availability: product.stockStatus === "in_stock" ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-    },
-    aggregateRating: product.reviewCount && product.reviewCount > 0 ? {
-      "@type": "AggregateRating",
-      ratingValue: product.rating || 0,
-      reviewCount: product.reviewCount,
-    } : undefined,
-  };
-
   return (
     <Container>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ 
-          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') 
-        }}
-      />
-
       <div className="pt-md sm:pt-lg">
         <AutoBreadcrumb />
       </div>
@@ -115,33 +72,34 @@ export default async function ProductDetailsPage({ params }: Props) {
       <PageHeader title={product.title} />
 
       <Section>
-        <div className="grid gap-lg lg:grid-cols-2">
-          {/* 👇 این بخش تغییر کرد */}
-          <ProductGallery slug={slug} fallbackImage={product.thumbnail} />
+        {/* 👇 چیدمان دو ستونی: گالری در راست، اطلاعات در چپ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* ستون راست: گالری عکس */}
+          <div>
+            <ProductGallery slug={slug} fallbackImage={product.thumbnail} />
+          </div>
 
-          <div className="lg:sticky lg:top-lg lg:self-start">
-            <Card className="flex flex-col gap-md">
-              {/* برند */}
+          {/* ستون چپ: قیمت، رنگ‌ها، خرید */}
+          <div className="space-y-6">
+            <Card className="flex flex-col gap-4 p-6">
               {product.brand && (
                 <p className="text-body-sm text-text-secondary">{product.brand}</p>
               )}
 
-              {/* قیمت */}
               <Price
                 price={product.price}
                 discountPrice={product.discountPrice}
                 currency={product.currency}
               />
 
-              {/* ✅ تایمر تخفیف (اگه تخفیف فعاله) */}
               {hasActiveDiscount && product.discountEndsAt && (
-                <DiscountTimer
-                  endsAt={product.discountEndsAt}
-                  variant="default"
-                />
+                <DiscountTimer endsAt={product.discountEndsAt} variant="default" />
               )}
 
-              {/* دکمه‌های عملیات */}
+              {/* 👇 بخش انتخاب رنگ (کامپوننت جدید) */}
+              <VariantSelector variants={variants} />
+
               <ProductActions product={product} />
             </Card>
           </div>
@@ -151,56 +109,15 @@ export default async function ProductDetailsPage({ params }: Props) {
       <Section>
         <Tabs
           items={[
-            {
-              label: "توضیحات",
-              content: (
-                <Card>
-                  <p className="max-w-2xl text-body-lg leading-relaxed text-text-secondary">
-                    {product?.description || product?.shortDescription || STORE_NOT_READY_MESSAGE}
-                  </p>
-                </Card>
-              ),
-            },
-            {
-              label: "مشخصات فنی",
-              content: (
-                <Card>
-                  <ProductMeta product={product || {}} />
-                </Card>
-              ),
-            },
-            {
-              label: `نظرات (${product.reviewCount || 0})`,
-              content: (
-                <ProductReviews
-                  productId={product.id}
-                  initialReviews={reviews}
-                  averageRating={product.rating || 0}
-                  totalReviews={product.reviewCount || 0}
-                  isAuthenticated={!!user}
-                />
-              ),
-            },
+            { label: "توضیحات", content: <Card><p className="text-body-lg leading-relaxed text-text-secondary">{product?.description || product?.shortDescription || STORE_NOT_READY_MESSAGE}</p></Card> },
+            { label: "مشخصات فنی", content: <Card><ProductMeta product={product || {}} /></Card> },
+            { label: `نظرات (${product.reviewCount || 0})`, content: <ProductReviews productId={product.id} initialReviews={reviews} averageRating={product.rating || 0} totalReviews={product.reviewCount || 0} isAuthenticated={!!user} /> },
           ]}
         />
       </Section>
 
       {SITE_FEATURES.products.relatedProducts.enabled && (
         <RelatedProductsSection products={relatedProducts} />
-      )}
-
-      {SITE_FEATURES.products.recentlyViewed.enabled && (
-        <RelatedProductsSection products={recentlyViewedProducts} title="بازدیدهای اخیر" />
-      )}
-
-      {SITE_FEATURES.products.compare.enabled && (
-        <RelatedProductsSection products={compareProducts} title="مقایسه با محصولات مشابه" />
-      )}
-
-      {SITE_FEATURES.products.faq.enabled && (
-        <Section title="سوالات متداول محصول">
-          <FAQList items={productFAQItems} />
-        </Section>
       )}
     </Container>
   );
