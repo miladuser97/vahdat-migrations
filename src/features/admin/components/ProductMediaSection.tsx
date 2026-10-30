@@ -5,12 +5,14 @@ import { ProductVariantSection } from "./ProductVariantSection";
 
 interface ProductMediaSectionProps {
   productId: string;
+  productTitle: string; // 👈 جدید
 }
 
-export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
+export function ProductMediaSection({ productId, productTitle }: ProductMediaSectionProps) {
   const [url, setUrl] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [candidates, setCandidates] = useState<any[]>([]);
   const [approvedMedia, setApprovedMedia] = useState<any[]>([]);
@@ -70,6 +72,31 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
     }
   };
 
+  const handleAutoSearch = async () => {
+    setSearchLoading(true);
+    setMsg("در حال جستجو در تکنولایف...");
+    
+    try {
+      const res = await fetch("/api/admin/media/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, productTitle }),
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setMsg(`✅ ${data.count} عکس پیدا و اضافه شد.`);
+        fetchCandidates();
+      } else {
+        setMsg(`❌ خطا: ${data.error}`);
+      }
+    } catch (err) {
+      setMsg("❌ خطای شبکه.");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
   const handleAction = async (candidateId: string, action: "approve" | "reject") => {
     try {
       const res = await fetch(`/api/admin/media/${action}`, {
@@ -115,7 +142,20 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
       <div className="space-y-6 p-4 border rounded-lg bg-background">
         <h3 className="font-bold text-lg">📸 عکس‌های محصول</h3>
         
+        {/* دکمه جستجوی خودکار */}
         <div className="flex flex-wrap gap-2 items-center">
+          <button
+            type="button"
+            onClick={handleAutoSearch}
+            disabled={searchLoading}
+            className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          >
+            {searchLoading ? "در حال جستجو..." : "🔍 جستجوی خودکار در تکنولایف"}
+          </button>
+        </div>
+
+        {/* آپلود دستی با لینک */}
+        <div className="flex flex-wrap gap-2 items-center mt-2">
           <input
             type="text"
             value={url}
@@ -129,7 +169,7 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
             onChange={(e) => setSelectedVariantId(e.target.value)}
             className="border p-2 rounded bg-background text-text-primary"
           >
-            <option value="">بدون رنگ (همه رنگ‌ها)</option>
+            <option value="">بدون رنگ</option>
             {variants.map((v) => (
               <option key={v.id} value={v.id}>{v.color}</option>
             ))}
@@ -154,14 +194,12 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
             <div className="grid grid-cols-3 gap-4">
               {approvedMedia.map((m) => (
                 <div key={m.id} className="border rounded p-2 flex flex-col items-center bg-card text-text-primary relative group">
-                  {/* کادر نمایش عکس */}
                   <div className="w-full h-24 relative mb-2">
                     <img 
                       src={m.media.url} 
                       alt="approved" 
                       className="w-full h-full object-cover rounded cursor-pointer"
                     />
-                    {/* 👇 باکس بزرگ‌نمایی شناور (فقط موقع هاور) */}
                     <div className="absolute top-0 left-full ml-2 hidden group-hover:block z-50 w-64 h-64 border-4 border-white shadow-2xl rounded-lg overflow-hidden bg-white">
                       <img src={m.media.url} alt="zoom" className="w-full h-full object-contain" />
                     </div>
@@ -201,7 +239,6 @@ export function ProductMediaSection({ productId }: ProductMediaSectionProps) {
                       alt="candidate" 
                       className="w-full h-full object-cover rounded cursor-pointer"
                     />
-                    {/* 👇 باکس بزرگ‌نمایی شناور برای کاندیدها */}
                     <div className="absolute top-0 left-full ml-2 hidden group-hover:block z-50 w-64 h-64 border-4 border-white shadow-2xl rounded-lg overflow-hidden bg-white">
                       <img src={c.previewUrl} alt="zoom" className="w-full h-full object-contain" />
                     </div>
