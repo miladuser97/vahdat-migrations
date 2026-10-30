@@ -59,8 +59,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           </Button>
         </Link>
       </div>
-
-      <ProductForm mode="edit" productId={productId} initialData={initialData} />
+      <ProductForm mode="edit" productId={productId} initialData={initialData} productTitle={initialData.title} />
     </div>
   );
 }
