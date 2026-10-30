@@ -23,13 +23,12 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { productId, color, colorHex } = await req.json();
+    const { productId, color, colorHex, inventoryCount } = await req.json();
 
     if (!productId || !color) {
       return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 });
     }
 
-    // ساخت اسلاگ یکتا بر اساس رنگ
     const slug = color.replace(/\s+/g, "-").toLowerCase() + "-" + Date.now();
     const sku = "VAR-" + Date.now();
 
@@ -40,7 +39,8 @@ export async function POST(req: Request) {
         colorHex: colorHex || "#000000",
         slug,
         sku,
-        price: 0, // قیمت رو بعداً تو فاز ۳.۸ اضافه می‌کنیم
+        price: 0,
+        inventoryCount: inventoryCount || 0, // 👈 ذخیره موجودی
       },
     });
 
@@ -50,7 +50,6 @@ export async function POST(req: Request) {
   }
 }
 
-// 👈 این بخش جدید برای حذف رنگ اضافه شد
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -60,7 +59,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "شناسه رنگ خالی است" }, { status: 400 });
     }
 
-    // اول ارتباط عکس‌ها با این رنگ رو قطع می‌کنیم (تا خطای دیتابیس نده)
     await prisma.productMedia.updateMany({
       where: { variantId },
       data: { variantId: null },
@@ -71,7 +69,6 @@ export async function DELETE(req: Request) {
       data: { variantId: null },
     });
 
-    // حالا خود رنگ رو پاک می‌کنیم
     await prisma.productVariant.delete({
       where: { id: variantId },
     });
