@@ -6,6 +6,7 @@ export async function POST(req: Request) {
   try {
     // ۱. بررسی احراز هویت
     const user = await getAuthenticatedUser();
+    console.log("USER_DEBUG:", user);
     if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
       return NextResponse.json({ error: "دسترسی غیرمجاز" }, { status: 403 });
     }
