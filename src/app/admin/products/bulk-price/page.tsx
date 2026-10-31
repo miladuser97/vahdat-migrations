@@ -26,6 +26,7 @@ export default function BulkPricePage() {
       const res = await fetch("/api/admin/products/bulk-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // 👈 اضافه شد
         body: JSON.stringify({ categorySlug, updateType, value, includeVariants }),
       });
 
