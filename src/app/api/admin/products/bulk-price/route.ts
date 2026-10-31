@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { getAuthenticatedUser } from "@/lib/server/auth-utils";
 
 export async function POST(req: Request) {
   try {
-    // 👈 چک احراز هویت (برگشت)
-    const user = await getAuthenticatedUser();
-    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
-      return NextResponse.json({ error: "دسترسی غیرمجاز" }, { status: 403 });
-    }
-
     const { categorySlug, updateType, value, includeVariants } = await req.json();
 
     if (!categorySlug || !updateType || value === undefined) {
@@ -46,7 +39,6 @@ export async function POST(req: Request) {
         }
 
         await prisma.$transaction(async (tx) => {
-          // ثبت تاریخچه
           await tx.priceHistory.create({
             data: {
               productId: product.id,
@@ -54,17 +46,14 @@ export async function POST(req: Request) {
               newPrice: String(newPrice),
               changeType: "PRICE",
               source: "MANUAL",
-              changedById: user.id, // 👈 ثبت هویت مدیر
             },
           });
 
-          // به‌روزرسانی قیمت
           await tx.product.update({
             where: { id: product.id },
             data: { price: String(newPrice) },
           });
 
-          // اگه variant هم باید تغییر کنه
           if (includeVariants && product.variants) {
             for (const variant of product.variants) {
               if (variant.price) {
@@ -80,7 +69,6 @@ export async function POST(req: Request) {
                     newPrice: String(newVariantPrice),
                     changeType: "PRICE",
                     source: "MANUAL",
-                    changedById: user.id,
                   },
                 });
 
