@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
+import { getCategoriesForSelectAction } from "@/lib/server/admin-actions";
 
 export default function BulkPricePage() {
   const [categorySlug, setCategorySlug] = useState("");
@@ -15,6 +16,17 @@ export default function BulkPricePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState<Array<{ id: string; slug: string; title: string }>>([]);
+
+  useEffect(() => {
+    async function loadCategories() {
+      const res = await getCategoriesForSelectAction();
+      if (res.success) {
+        setCategories(res.data);
+      }
+    }
+    loadCategories();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +38,7 @@ export default function BulkPricePage() {
       const res = await fetch("/api/admin/products/bulk-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // 👈 اضافه شد
+        credentials: "include",
         body: JSON.stringify({ categorySlug, updateType, value, includeVariants }),
       });
 
@@ -53,10 +65,9 @@ export default function BulkPricePage() {
             <Label>دسته‌بندی</Label>
             <Select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} required>
               <option value="">-- انتخاب کنید --</option>
-              <option value="mobile">موبایل</option>
-              <option value="tablet">تبلت</option>
-              <option value="laptop">لپ‌تاپ</option>
-              <option value="accessories">لوازم جانبی</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.slug}>{c.title}</option>
+              ))}
             </Select>
           </div>
 
