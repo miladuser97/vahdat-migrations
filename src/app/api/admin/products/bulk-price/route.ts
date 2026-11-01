@@ -29,9 +29,12 @@ export async function POST(req: Request) {
     const results = [];
     for (const product of products) {
       try {
-        const newPrice = updateType === "PERCENTAGE"
+        // 👈 گرد کردن قیمت جدید
+        const rawPrice = updateType === "PERCENTAGE"
           ? product.price.mul(1 + value / 100).toNumber()
           : product.price.add(value).toNumber();
+        
+        const newPrice = Math.round(rawPrice); // 👈 گرد کردن
 
         if (newPrice < 0) {
           results.push({ productId: product.id, title: product.title, success: false, error: "قیمت منفی" });
@@ -57,9 +60,11 @@ export async function POST(req: Request) {
           if (includeVariants && product.variants) {
             for (const variant of product.variants) {
               if (variant.price) {
-                const newVariantPrice = updateType === "PERCENTAGE"
+                const rawVariantPrice = updateType === "PERCENTAGE"
                   ? variant.price.mul(1 + value / 100).toNumber()
                   : variant.price.add(value).toNumber();
+                
+                const newVariantPrice = Math.round(rawVariantPrice); // 👈 گرد کردن
 
                 await tx.priceHistory.create({
                   data: {
