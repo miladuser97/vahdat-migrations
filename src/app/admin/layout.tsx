@@ -17,6 +17,7 @@ const ADMIN_MENU_ITEMS = [
   { label: "نظرات", href: "/admin/reviews" },
   { label: "تعمیرات", href: "/admin/repair" },
   { label: "تنظیمات", href: "/admin/settings" },
+  { label: "⚙️ تنظیمات فروش", href: "/admin/settings/sales" },
 ];
 
 export default async function AdminLayout({
