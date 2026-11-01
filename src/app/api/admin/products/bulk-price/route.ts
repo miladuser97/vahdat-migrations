@@ -3,9 +3,9 @@ import { prisma } from "@/lib/server/prisma";
 
 export async function POST(req: Request) {
   try {
-    const { categorySlug, updateType, value, includeVariants } = await req.json();
+    const { categorySlugs, updateType, value, includeVariants } = await req.json();
 
-    if (!categorySlug || !updateType || value === undefined) {
+    if (!categorySlugs || !Array.isArray(categorySlugs) || categorySlugs.length === 0 || !updateType || value === undefined) {
       return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 });
     }
 
@@ -14,12 +14,12 @@ export async function POST(req: Request) {
     }
 
     const products = await prisma.product.findMany({
-      where: { categorySlug, isEnabled: true },
+      where: { categorySlug: { in: categorySlugs }, isEnabled: true },
       include: { variants: includeVariants },
     });
 
     if (products.length === 0) {
-      return NextResponse.json({ error: "محصولی در این دسته‌بندی یافت نشد" }, { status: 404 });
+      return NextResponse.json({ error: "محصولی در این دسته‌بندی‌ها یافت نشد" }, { status: 404 });
     }
 
     if (products.length > 100) {
@@ -29,12 +29,11 @@ export async function POST(req: Request) {
     const results = [];
     for (const product of products) {
       try {
-        // 👈 گرد کردن قیمت جدید
         const rawPrice = updateType === "PERCENTAGE"
           ? product.price.mul(1 + value / 100).toNumber()
           : product.price.add(value).toNumber();
         
-        const newPrice = Math.round(rawPrice); // 👈 گرد کردن
+        const newPrice = Math.round(rawPrice);
 
         if (newPrice < 0) {
           results.push({ productId: product.id, title: product.title, success: false, error: "قیمت منفی" });
@@ -64,7 +63,7 @@ export async function POST(req: Request) {
                   ? variant.price.mul(1 + value / 100).toNumber()
                   : variant.price.add(value).toNumber();
                 
-                const newVariantPrice = Math.round(rawVariantPrice); // 👈 گرد کردن
+                const newVariantPrice = Math.round(rawVariantPrice);
 
                 await tx.priceHistory.create({
                   data: {
