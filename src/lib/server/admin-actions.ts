@@ -2115,3 +2115,56 @@ export async function deleteReviewReplyAction(
     return { success: false, error: "خطا در حذف پاسخ." };
   }
 }
+// ============================================================
+// ✅ Get Categories Tree (سلسله‌مراتبی برای ویرایش گروهی)
+// ============================================================
+
+export interface CategoryTreeItem {
+  id: string;
+  slug: string;
+  title: string;
+  children: CategoryTreeItem[];
+}
+
+export type GetCategoriesTreeResult =
+  | { success: true; data: CategoryTreeItem[] }
+  | { success: false; error: string };
+
+export async function getCategoriesTreeAction(): Promise<GetCategoriesTreeResult> {
+  const user = await getAuthenticatedUser();
+  if (!isAdmin(user)) {
+    return { success: false, error: "دسترسی غیرمجاز." };
+  }
+
+  try {
+    const allCategories = await prisma.category.findMany({
+      where: { visible: true },
+      orderBy: { order: "asc" },
+      select: { id: true, slug: true, title: true, parentId: true },
+    });
+
+    // ساخت درخت
+    const map = new Map<string, CategoryTreeItem>();
+    const roots: CategoryTreeItem[] = [];
+
+    for (const cat of allCategories) {
+      map.set(cat.id, { id: cat.id, slug: cat.slug, title: cat.title, children: [] });
+    }
+
+    for (const cat of allCategories) {
+      const node = map.get(cat.id)!;
+      if (cat.parentId && map.has(cat.parentId)) {
+        map.get(cat.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    return { success: true, data: roots };
+  } catch (error) {
+    logger.error("[Admin:Categories] GetTree failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, error: "خطا در بارگذاری دسته‌بندی‌ها." };
+  }
+}
