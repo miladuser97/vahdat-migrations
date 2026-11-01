@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
+import { PriceChart } from "@/features/admin/components/PriceChart";
 
 interface PriceHistoryItem {
   id: string;
@@ -42,6 +43,15 @@ export default function PriceHistoryPage() {
     load();
   }, []);
 
+  // 👈 آماده‌سازی داده برای نمودار (برعکس کردن ترتیب برای نمایش زمانی)
+  const chartData = [...history]
+    .reverse()
+    .map((h) => ({
+      date: new Date(h.createdAt).toLocaleDateString("fa-IR"),
+      price: h.newPrice ? Math.round(Number(h.newPrice)) : 0,
+    }))
+    .filter((d) => d.price > 0);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">📜 تاریخچه تغییرات قیمت</h1>
@@ -55,6 +65,15 @@ export default function PriceHistoryPage() {
         </Card>
       )}
 
+      {/* 👈 نمودار */}
+      {chartData.length > 0 && (
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">📈 روند تغییرات قیمت</h2>
+          <PriceChart data={chartData} />
+        </Card>
+      )}
+
+      {/* 👈 جدول */}
       {history.length > 0 && (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -65,8 +84,6 @@ export default function PriceHistoryPage() {
                   <th className="p-3 text-right">رنگ</th>
                   <th className="p-3 text-right">قیمت قبلی</th>
                   <th className="p-3 text-right">قیمت جدید</th>
-                  <th className="p-3 text-right">تخفیف قبلی</th>
-                  <th className="p-3 text-right">تخفیف جدید</th>
                   <th className="p-3 text-right">منبع</th>
                   <th className="p-3 text-right">تاریخ</th>
                 </tr>
@@ -82,8 +99,6 @@ export default function PriceHistoryPage() {
                     <td className="p-3" dir="ltr">
                       {h.newPrice ? Math.round(Number(h.newPrice)).toLocaleString() : "—"}
                     </td>
-                    <td className="p-3">{h.oldDiscountPercentage ?? "—"}</td>
-                    <td className="p-3">{h.newDiscountPercentage ?? "—"}</td>
                     <td className="p-3">{h.source}</td>
                     <td className="p-3">{new Date(h.createdAt).toLocaleDateString("fa-IR")}</td>
                   </tr>
