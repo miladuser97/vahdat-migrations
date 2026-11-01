@@ -142,6 +142,7 @@ model Category {
   parentId    String?
   order       Int      @default(0)
   visible     Boolean  @default(true)
+  isSalesEnabled Boolean @default(true) // 👈 جدید
   showInSlider Boolean @default(true)
   image       String?
   seo         Json?    @default("{}")
@@ -206,6 +207,7 @@ model Product {
 
   inventoryCount   Int      @default(0)
   isEnabled        Boolean  @default(true)
+  isSalesEnabled   Boolean  @default(true) // 👈 جدید
 
   warranty         String?
   isOriginal       Boolean  @default(true)
