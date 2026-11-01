@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const ADMIN_MENU_ITEMS = [
   { label: "پیشخوان", href: "/admin" },
   { label: "محصولات", href: "/admin/products" },
+  { label: "💰 ویرایش گروهی قیمت", href: "/admin/products/bulk-price" },
   { label: "دسته‌بندی‌ها", href: "/admin/categories" },
   { label: "📸 کتابخانه‌ی عکس", href: "/admin/media" },
   { label: "سفارش‌ها", href: "/admin/orders" },
