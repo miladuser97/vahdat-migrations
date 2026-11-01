@@ -34,12 +34,42 @@ export default function BulkPricePage() {
     loadCategories();
   }, []);
 
+  // 👈 پیدا کردن همه‌ی فرزندان یک دسته
+  const getAllDescendants = (item: CategoryTreeItem): string[] => {
+    const slugs = [item.slug];
+    for (const child of item.children) {
+      slugs.push(...getAllDescendants(child));
+    }
+    return slugs;
+  };
+
+  // 👈 پیدا کردن یک دسته بر اساس slug
+  const findCategoryBySlug = (items: CategoryTreeItem[], slug: string): CategoryTreeItem | null => {
+    for (const item of items) {
+      if (item.slug === slug) return item;
+      const found = findCategoryBySlug(item.children, slug);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  // 👈 انتخاب/لغو دسته و همه‌ی زیرشاخه‌هاش
   const toggleCategory = (slug: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(slug)
-        ? prev.filter((s) => s !== slug)
-        : [...prev, slug]
-    );
+    const category = findCategoryBySlug(categories, slug);
+    if (!category) return;
+
+    const allSlugs = getAllDescendants(category);
+    const isSelected = selectedCategories.includes(slug);
+
+    setSelectedCategories((prev) => {
+      if (isSelected) {
+        // لغو انتخاب: حذف خودش و همه‌ی فرزندان
+        return prev.filter((s) => !allSlugs.includes(s));
+      } else {
+        // انتخاب: اضافه کردن خودش و همه‌ی فرزندان
+        return [...new Set([...prev, ...allSlugs])];
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +84,7 @@ export default function BulkPricePage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          categorySlugs: selectedCategories, // 👈 آرایه‌ای از دسته‌بندی‌ها
+          categorySlugs: selectedCategories,
           updateType,
           value,
           includeVariants,
