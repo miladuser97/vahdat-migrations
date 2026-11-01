@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
-import { getCategoriesForSelectAction } from "@/lib/server/admin-actions";
+import { getCategoriesTreeAction } from "@/lib/server/admin-actions";
+
+interface CategoryTreeItem {
+  id: string;
+  slug: string;
+  title: string;
+  children: CategoryTreeItem[];
+}
 
 export default function BulkPricePage() {
   const [categorySlug, setCategorySlug] = useState("");
@@ -16,11 +23,11 @@ export default function BulkPricePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
-  const [categories, setCategories] = useState<Array<{ id: string; slug: string; title: string }>>([]);
+  const [categories, setCategories] = useState<CategoryTreeItem[]>([]);
 
   useEffect(() => {
     async function loadCategories() {
-      const res = await getCategoriesForSelectAction();
+      const res = await getCategoriesTreeAction();
       if (res.success) {
         setCategories(res.data);
       }
@@ -55,6 +62,16 @@ export default function BulkPricePage() {
     }
   };
 
+  // تابع بازگشتی برای ساخت optionها
+  const renderCategoryOptions = (items: CategoryTreeItem[], level = 0): React.ReactNode[] => {
+    return items.flatMap((item) => [
+      <option key={item.id} value={item.slug}>
+        {"— ".repeat(level)}{item.title}
+      </option>,
+      ...renderCategoryOptions(item.children, level + 1),
+    ]);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">💰 ویرایش گروهی قیمت‌ها</h1>
@@ -65,9 +82,7 @@ export default function BulkPricePage() {
             <Label>دسته‌بندی</Label>
             <Select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} required>
               <option value="">-- انتخاب کنید --</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.slug}>{c.title}</option>
-              ))}
+              {renderCategoryOptions(categories)}
             </Select>
           </div>
 
