@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
 import { getCategoriesTreeAction } from "@/lib/server/admin-actions";
 
 interface CategoryTreeItem {
@@ -16,7 +15,7 @@ interface CategoryTreeItem {
 }
 
 export default function BulkPricePage() {
-  const [categorySlug, setCategorySlug] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [updateType, setUpdateType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE");
   const [value, setValue] = useState(0);
   const [includeVariants, setIncludeVariants] = useState(false);
@@ -35,6 +34,14 @@ export default function BulkPricePage() {
     loadCategories();
   }, []);
 
+  const toggleCategory = (slug: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(slug)
+        ? prev.filter((s) => s !== slug)
+        : [...prev, slug]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -46,7 +53,12 @@ export default function BulkPricePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ categorySlug, updateType, value, includeVariants }),
+        body: JSON.stringify({
+          categorySlugs: selectedCategories, // 👈 آرایه‌ای از دسته‌بندی‌ها
+          updateType,
+          value,
+          includeVariants,
+        }),
       });
 
       const data = await res.json();
@@ -62,13 +74,22 @@ export default function BulkPricePage() {
     }
   };
 
-  // تابع بازگشتی برای ساخت optionها
-  const renderCategoryOptions = (items: CategoryTreeItem[], level = 0): React.ReactNode[] => {
+  // تابع بازگشتی برای ساخت چک‌باکس‌ها
+  const renderCategoryCheckboxes = (items: CategoryTreeItem[], level = 0): React.ReactNode[] => {
     return items.flatMap((item) => [
-      <option key={item.id} value={item.slug}>
-        {"— ".repeat(level)}{item.title}
-      </option>,
-      ...renderCategoryOptions(item.children, level + 1),
+      <div key={item.id} className="flex items-center gap-2" style={{ paddingRight: `${level * 20}px` }}>
+        <input
+          type="checkbox"
+          id={`cat-${item.slug}`}
+          checked={selectedCategories.includes(item.slug)}
+          onChange={() => toggleCategory(item.slug)}
+          className="h-4 w-4"
+        />
+        <label htmlFor={`cat-${item.slug}`} className="text-sm cursor-pointer">
+          {item.title}
+        </label>
+      </div>,
+      ...renderCategoryCheckboxes(item.children, level + 1),
     ]);
   };
 
@@ -79,19 +100,22 @@ export default function BulkPricePage() {
       <Card className="p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>دسته‌بندی</Label>
-            <Select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} required>
-              <option value="">-- انتخاب کنید --</option>
-              {renderCategoryOptions(categories)}
-            </Select>
+            <Label>دسته‌بندی‌ها (چندگانه)</Label>
+            <div className="border rounded p-4 max-h-64 overflow-y-auto space-y-1">
+              {renderCategoryCheckboxes(categories)}
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label>نوع به‌روزرسانی</Label>
-            <Select value={updateType} onChange={(e) => setUpdateType(e.target.value as any)}>
+            <select
+              value={updateType}
+              onChange={(e) => setUpdateType(e.target.value as any)}
+              className="border p-2 rounded w-full bg-background text-text-primary"
+            >
               <option value="PERCENTAGE">درصدی</option>
               <option value="FIXED">مبلغ ثابت (تومان)</option>
-            </Select>
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -115,8 +139,8 @@ export default function BulkPricePage() {
             <Label htmlFor="includeVariants">شامل variantها (قیمت‌های اختصاصی)</Label>
           </div>
 
-          <Button type="submit" disabled={loading || !categorySlug}>
-            {loading ? "در حال اعمال..." : "اعمال تغییرات"}
+          <Button type="submit" disabled={loading || selectedCategories.length === 0}>
+            {loading ? "در حال اعمال..." : `اعمال تغییرات (${selectedCategories.length} دسته‌بندی)`}
           </Button>
 
           {error && <p className="text-sm text-red-600 font-bold">{error}</p>}
