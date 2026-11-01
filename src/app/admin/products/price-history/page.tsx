@@ -76,8 +76,12 @@ export default function PriceHistoryPage() {
                   <tr key={h.id} className="border-t border-gray-200">
                     <td className="p-3">{h.productTitle}</td>
                     <td className="p-3">{h.variantColor || "—"}</td>
-                    <td className="p-3" dir="ltr">{h.oldPrice ? Number(h.oldPrice).toLocaleString() : "—"}</td>
-                    <td className="p-3" dir="ltr">{h.newPrice ? Number(h.newPrice).toLocaleString() : "—"}</td>
+                    <td className="p-3" dir="ltr">
+                      {h.oldPrice ? Math.round(Number(h.oldPrice)).toLocaleString() : "—"}
+                    </td>
+                    <td className="p-3" dir="ltr">
+                      {h.newPrice ? Math.round(Number(h.newPrice)).toLocaleString() : "—"}
+                    </td>
                     <td className="p-3">{h.oldDiscountPercentage ?? "—"}</td>
                     <td className="p-3">{h.newDiscountPercentage ?? "—"}</td>
                     <td className="p-3">{h.source}</td>
