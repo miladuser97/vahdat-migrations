@@ -1,125 +1,80 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { QuantitySelector } from "@/components/ui/QuantitySelector";
-import { SITE_FEATURES } from "@/config/features";
-import { useCart } from "@/features/cart/CartProvider";
 import type { Product } from "@/features/products/types";
-import { cn } from "@/utils/cn";
+import { useCart } from "@/features/cart/hooks/useCart";
 
-export interface ProductActionsProps {
-  compact?: boolean;
-  /** The product this row of actions belongs to. */
-  product?: Product;
+interface ProductActionsProps {
+  product: Product;
+  siteSalesEnabled?: boolean;
 }
 
-export function ProductActions({ compact = false, product }: ProductActionsProps) {
-  const { addItem } = useCart();
+export function ProductActions({ product, siteSalesEnabled = true }: ProductActionsProps) {
   const [quantity, setQuantity] = useState(1);
-  const [justAdded, setJustAdded] = useState(false);
+  const { addToCart } = useCart();
 
-  // ============================================================
-  // Compact Mode — فقط دکمه‌ی + کوچک
-  // ============================================================
-  if (compact) {
-    if (!product || !SITE_FEATURES.products.addToCart.enabled) {
-      return null;
-    }
+  const isOutOfStock = product.stockStatus === "out_of_stock";
 
-    // اگه ناموجود، دکمه غیرفعال
-    const isOutOfStock = product.stockStatus === "out_of_stock";
+  const handleAddToCart = () => {
+    addToCart(product, quantity);
+  };
 
-    function handleQuickAdd() {
-      if (!product || isOutOfStock) return;
-
-      addItem({
-        id: product.id,
-        productId: product.id,
-        title: product.title,
-        slug: product.slug,
-        quantity: 1,
-        price: product.discountPrice ?? product.price ?? 0,
-        currency: product.currency,
-      });
-
-      setJustAdded(true);
-      setTimeout(() => setJustAdded(false), 1500);
-    }
-
+  // 👈 اگه فروش سایت بسته باشه
+  if (!siteSalesEnabled) {
     return (
-      <button
-        type="button"
-        onClick={handleQuickAdd}
-        disabled={isOutOfStock}
-        aria-label={isOutOfStock ? "ناموجود" : "افزودن به سبد خرید"}
-        className={cn(
-          "flex h-8 w-8 items-center justify-center shrink-0",
-          "rounded-lg transition-all duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1",
-          isOutOfStock
-            ? "bg-muted text-text-muted cursor-not-allowed"
-            : justAdded
-            ? "bg-success text-white scale-110"
-            : "bg-brand-600 text-white hover:bg-brand-700 active:scale-95"
-        )}
-      >
-        {justAdded ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <Plus className="h-4 w-4" />
-        )}
-      </button>
+      <div className="space-y-3">
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <p className="text-sm font-bold text-yellow-800">
+            🔒 فروش موقتاً بسته است
+          </p>
+          <p className="text-xs text-yellow-600 mt-1">
+            لطفاً بعداً مراجعه کنید.
+          </p>
+        </div>
+      </div>
     );
   }
 
-  // ============================================================
-  // حالت عادی — صفحه‌ی جزئیات محصول
-  // ============================================================
-  const handleAddToCart = () => {
-    if (!product) return;
-    addItem({
-      id: product.id,
-      productId: product.id,
-      title: product.title,
-      slug: product.slug,
-      quantity: quantity,
-      price: product.discountPrice ?? product.price ?? 0,
-      currency: product.currency,
-    });
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1500);
-  };
+  // 👈 اگه محصول ناموجود باشه
+  if (isOutOfStock) {
+    return (
+      <div className="space-y-3">
+        <Button disabled className="w-full" size="lg">
+          ناموجود
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-md">
-      {SITE_FEATURES.products.addToCart.enabled && product && (
-        <div className="flex flex-wrap items-center gap-sm">
-          <QuantitySelector
-            value={quantity}
-            min={1}
-            onIncrement={() => setQuantity((q) => q + 1)}
-            onDecrement={() => setQuantity((q) => Math.max(1, q - 1))}
-          />
-          <Button
-            type="button"
-            variant={justAdded ? "success" : "default"}
-            size="md"
-            className="flex-1"
-            onClick={handleAddToCart}
+    <div className="space-y-3">
+      {/* انتخاب تعداد */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-text-secondary">تعداد:</span>
+        <div className="flex items-center border rounded-lg">
+          <button
+            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+            className="px-3 py-2 hover:bg-gray-100"
+            disabled={quantity <= 1}
           >
-            {justAdded ? (
-              <>
-                <Check className="h-4 w-4 ml-1" />
-                به سبد اضافه شد
-              </>
-            ) : (
-              "افزودن به سبد خرید"
-            )}
-          </Button>
+            −
+          </button>
+          <span className="px-4 py-2 border-x">{quantity}</span>
+          <button
+            onClick={() => setQuantity((q) => q + 1)}
+            className="px-3 py-2 hover:bg-gray-100"
+            disabled={quantity >= product.stockCount}
+          >
+            +
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* دکمه خرید */}
+      <Button onClick={handleAddToCart} className="w-full" size="lg">
+        🛒 افزودن به سبد خرید
+      </Button>
     </div>
   );
 }
