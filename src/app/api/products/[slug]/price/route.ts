@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { calculateFinalPrice } from "@/lib/server/price-service";
 
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -22,20 +21,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       ? product.variants.find((v) => v.id === variantId)
       : product.variants[0] || null;
 
-    const result = calculateFinalPrice({
-      productPrice: product.price,
-      variantPrice: variant?.price,
-      discountPercentage: product.discountPercentage,
-      costPrice: product.costPrice,
-    });
+    // 👈 تبدیل مستقیم به عدد
+    const basePrice = Number(variant?.price ?? product.price);
+    const discountPercentage = Number(product.discountPercentage ?? 0);
+    
+    // محاسبه قیمت نهایی
+    const discountAmount = (basePrice * discountPercentage) / 100;
+    const finalPrice = Math.round(basePrice - discountAmount);
 
     return NextResponse.json({
-      basePrice: result.basePrice.toString(),
-      finalPrice: result.finalPrice.toString(),
-      discountAmount: result.discountAmount.toString(),
-      isBelowCost: result.isBelowCost,
-      isBelowMinAllowed: result.isBelowMinAllowed,
-      minAllowedPrice: result.minAllowedPrice?.toString() || null,
+      basePrice: basePrice.toString(),
+      finalPrice: finalPrice.toString(),
+      discountAmount: Math.round(discountAmount).toString(),
+      discountPercentage: discountPercentage,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "خطا" }, { status: 500 });
