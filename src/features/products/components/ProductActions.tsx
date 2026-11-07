@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { Product } from "@/features/products/types";
-import { useCart } from "@/features/cart/hooks/useCart";
 
 interface ProductActionsProps {
   product: Product;
@@ -12,13 +11,8 @@ interface ProductActionsProps {
 
 export function ProductActions({ product, siteSalesEnabled = true }: ProductActionsProps) {
   const [quantity, setQuantity] = useState(1);
-  const { addToCart } = useCart();
 
   const isOutOfStock = product.stockStatus === "out_of_stock";
-
-  const handleAddToCart = () => {
-    addToCart(product, quantity);
-  };
 
   // 👈 اگه فروش سایت بسته باشه
   if (siteSalesEnabled === false) {
@@ -64,7 +58,6 @@ export function ProductActions({ product, siteSalesEnabled = true }: ProductActi
           <button
             onClick={() => setQuantity((q) => q + 1)}
             className="px-3 py-2 hover:bg-gray-100"
-            disabled={quantity >= product.stockCount}
           >
             +
           </button>
@@ -72,7 +65,7 @@ export function ProductActions({ product, siteSalesEnabled = true }: ProductActi
       </div>
 
       {/* دکمه خرید */}
-      <Button onClick={handleAddToCart} className="w-full" size="lg">
+      <Button className="w-full" size="lg">
         🛒 افزودن به سبد خرید
       </Button>
     </div>
