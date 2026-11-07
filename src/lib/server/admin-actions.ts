@@ -197,6 +197,7 @@ export interface ProductFormData {
   price: number;
   currency: string;
   discountPrice?: number;
+  discountPercentage?: number; // 👈 اضافه شد
   discountEndsAt?: string;
   isNew: boolean;
   isBestSeller: boolean;
@@ -283,6 +284,7 @@ export async function createProductAction(
         brandId: data.brandId || null,
         categorySlug: data.categorySlug || null,
         price: data.price,
+        discountPercentage: data.discountPercentage ?? 0, // 👈 اضافه شد
         currency: data.currency || "تومان",
         discountPrice: data.discountPrice ?? null,
         discountEndsAt: data.discountEndsAt ? new Date(data.discountEndsAt) : null,
@@ -325,7 +327,7 @@ export async function createProductAction(
 }
 
 // ============================================================
-// ✅ Get Product By ID (full data for edit form)
+// ✅ Get Product By ID
 // ============================================================
 
 export type GetProductByIdResult =
@@ -370,6 +372,7 @@ export async function getProductByIdAction(
         brandId: p.brandId || undefined,
         categorySlug: p.categorySlug || undefined,
         price: Number(p.price),
+        discountPercentage: p.discountPercentage ?? 0, // 👈 اضافه شد
         currency: p.currency,
         discountPrice: p.discountPrice ? Number(p.discountPrice) : undefined,
         discountEndsAt: p.discountEndsAt ? p.discountEndsAt.toISOString().slice(0, 16) : undefined,
@@ -460,6 +463,7 @@ export async function updateProductFullAction(
         brandId: data.brandId || null,
         categorySlug: data.categorySlug || null,
         price: data.price,
+        discountPercentage: data.discountPercentage ?? 0, // 👈 اضافه شد
         currency: data.currency || "تومان",
         discountPrice: data.discountPrice ?? null,
         discountEndsAt: data.discountEndsAt ? new Date(data.discountEndsAt) : null,
@@ -558,7 +562,7 @@ export async function deleteProductAction(
 }
 
 // ============================================================
-// ✅ Get Categories for Select (dropdown)
+// ✅ Get Categories for Select
 // ============================================================
 
 export interface CategoryOption {
@@ -594,7 +598,60 @@ export async function getCategoriesForSelectAction(): Promise<GetCategoriesForSe
 }
 
 // ============================================================
-// ✅ Get Brands for Select (dropdown)
+// ✅ Get Categories Tree
+// ============================================================
+
+export interface CategoryTreeItem {
+  id: string;
+  slug: string;
+  title: string;
+  children: CategoryTreeItem[];
+}
+
+export type GetCategoriesTreeResult =
+  | { success: true; data: CategoryTreeItem[] }
+  | { success: false; error: string };
+
+export async function getCategoriesTreeAction(): Promise<GetCategoriesTreeResult> {
+  const user = await getAuthenticatedUser();
+  if (!isAdmin(user)) {
+    return { success: false, error: "دسترسی غیرمجاز." };
+  }
+
+  try {
+    const allCategories = await prisma.category.findMany({
+      where: { visible: true },
+      orderBy: { order: "asc" },
+      select: { id: true, slug: true, title: true, parentId: true },
+    });
+
+    const map = new Map<string, CategoryTreeItem>();
+    const roots: CategoryTreeItem[] = [];
+
+    for (const cat of allCategories) {
+      map.set(cat.id, { id: cat.id, slug: cat.slug, title: cat.title, children: [] });
+    }
+
+    for (const cat of allCategories) {
+      const node = map.get(cat.id)!;
+      if (cat.parentId && map.has(cat.parentId)) {
+        map.get(cat.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    return { success: true, data: roots };
+  } catch (error) {
+    logger.error("[Admin:Categories] GetTree failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, error: "خطا در بارگذاری دسته‌بندی‌ها." };
+  }
+}
+
+// ============================================================
+// ✅ Get Brands for Select
 // ============================================================
 
 export interface BrandOption {
@@ -2113,58 +2170,5 @@ export async function deleteReviewReplyAction(
       error: error instanceof Error ? error.message : String(error),
     });
     return { success: false, error: "خطا در حذف پاسخ." };
-  }
-}
-// ============================================================
-// ✅ Get Categories Tree (سلسله‌مراتبی برای ویرایش گروهی)
-// ============================================================
-
-export interface CategoryTreeItem {
-  id: string;
-  slug: string;
-  title: string;
-  children: CategoryTreeItem[];
-}
-
-export type GetCategoriesTreeResult =
-  | { success: true; data: CategoryTreeItem[] }
-  | { success: false; error: string };
-
-export async function getCategoriesTreeAction(): Promise<GetCategoriesTreeResult> {
-  const user = await getAuthenticatedUser();
-  if (!isAdmin(user)) {
-    return { success: false, error: "دسترسی غیرمجاز." };
-  }
-
-  try {
-    const allCategories = await prisma.category.findMany({
-      where: { visible: true },
-      orderBy: { order: "asc" },
-      select: { id: true, slug: true, title: true, parentId: true },
-    });
-
-    // ساخت درخت
-    const map = new Map<string, CategoryTreeItem>();
-    const roots: CategoryTreeItem[] = [];
-
-    for (const cat of allCategories) {
-      map.set(cat.id, { id: cat.id, slug: cat.slug, title: cat.title, children: [] });
-    }
-
-    for (const cat of allCategories) {
-      const node = map.get(cat.id)!;
-      if (cat.parentId && map.has(cat.parentId)) {
-        map.get(cat.parentId)!.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    return { success: true, data: roots };
-  } catch (error) {
-    logger.error("[Admin:Categories] GetTree failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { success: false, error: "خطا در بارگذاری دسته‌بندی‌ها." };
   }
 }
