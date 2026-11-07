@@ -37,6 +37,7 @@ const DEFAULT_DATA: ProductFormData = {
   price: 0,
   currency: "تومان",
   discountPrice: undefined,
+  discountPercentage: 0, // 👈 جدید
   discountEndsAt: "",
   isNew: false,
   isBestSeller: false,
@@ -221,9 +222,23 @@ export function ProductForm({ mode, productId, initialData, productTitle }: Prod
               </Select>
             </div>
           </div>
+
+          {/* 👈 فیلد درصد تخفیف */}
+          <div className="space-y-2">
+            <Label htmlFor="discountPercentage">درصد تخفیف (۰ تا ۱۰۰)</Label>
+            <Input
+              id="discountPercentage"
+              inputMode="numeric"
+              dir="ltr"
+              value={formData.discountPercentage ?? 0}
+              onChange={(e) => updateField("discountPercentage", Number(e.target.value) || 0)}
+              disabled={isSubmitting}
+            />
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="discountPrice">قیمت با تخفیف (اختیاری)</Label>
+              <Label htmlFor="discountPrice">قیمت با تخفیف (اختیاری - قدیمی)</Label>
               <Input id="discountPrice" inputMode="numeric" dir="ltr" value={formData.discountPrice ?? ""} onChange={(e) => { const val = e.target.value; updateField("discountPrice", val ? Number(val) : undefined); }} disabled={isSubmitting} />
             </div>
             <div className="space-y-2">
