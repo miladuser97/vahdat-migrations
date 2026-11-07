@@ -21,7 +21,7 @@ export function ProductActions({ product, siteSalesEnabled = true }: ProductActi
   };
 
   // 👈 اگه فروش سایت بسته باشه
-  if (!siteSalesEnabled) {
+  if (siteSalesEnabled === false) {
     return (
       <div className="space-y-3">
         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
