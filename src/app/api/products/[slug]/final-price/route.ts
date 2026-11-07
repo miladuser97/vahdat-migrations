@@ -16,11 +16,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       return NextResponse.json({ error: "محصول یافت نشد" }, { status: 404 });
     }
 
-    const variant = variantId
-      ? product.variants.find((v) => v.id === variantId)
-      : product.variants[0] || null;
+    // 👈 انتخاب variant (اگه داده شده و قیمت داره)
+    let basePrice = Number(product.price);
+    
+    if (variantId) {
+      const variant = product.variants.find((v) => v.id === variantId);
+      if (variant && variant.price) {
+        basePrice = Number(variant.price);
+      }
+    }
 
-    const basePrice = Number(variant?.price ?? product.price);
     const discountPercentage = Number(product.discountPercentage ?? 0);
     const discountAmount = (basePrice * discountPercentage) / 100;
     const finalPrice = Math.round(basePrice - discountAmount);
