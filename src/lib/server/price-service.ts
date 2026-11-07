@@ -1,4 +1,4 @@
-priceimport { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export interface PriceCalculationInput {
   productPrice: Prisma.Decimal;
@@ -77,4 +77,4 @@ export function getMinAllowedPrice(costPrice: Prisma.Decimal | null): Prisma.Dec
   if (!costPrice) return null;
   const profitAmount = costPrice.mul(MIN_PROFIT_PERCENTAGE).div(100);
   return costPrice.add(profitAmount);
-}-service.ts
+}
