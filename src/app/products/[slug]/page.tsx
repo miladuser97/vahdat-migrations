@@ -35,19 +35,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await getProductBySlug(slug);
 
   if (!product) {
-    return {
-      title: "محصول یافت نشد",
-    };
+    return { title: "محصول یافت نشد" };
   }
 
   return {
     title: product.title,
     description: product.description || product.shortDescription || STORE_NOT_READY_MESSAGE,
-    openGraph: {
-      title: product.title,
-      description: product.description || product.shortDescription,
-      type: "website",
-    },
   };
 }
 
@@ -86,37 +79,8 @@ export default async function ProductDetailsPage({ params }: Props) {
     product.discountPrice < product.price &&
     product.discountEndsAt !== undefined;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    description: product.description || product.shortDescription,
-    brand: {
-      "@type": "Brand",
-      name: product.brand,
-    },
-    offers: {
-      "@type": "Offer",
-      price: product.price ? product.price * 10 : undefined,
-      priceCurrency: "IRR",
-      availability: product.stockStatus === "in_stock" ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-    },
-    aggregateRating: product.reviewCount && product.reviewCount > 0 ? {
-      "@type": "AggregateRating",
-      ratingValue: product.rating || 0,
-      reviewCount: product.reviewCount,
-    } : undefined,
-  };
-
   return (
     <Container>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ 
-          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') 
-        }}
-      />
-
       <div className="pt-md sm:pt-lg">
         <AutoBreadcrumb />
       </div>
@@ -135,10 +99,13 @@ export default async function ProductDetailsPage({ params }: Props) {
                 <p className="text-body-sm text-text-secondary">{product.brand}</p>
               )}
 
+              {/* 👈 پاس دادن slug و discountPercentage */}
               <Price
                 price={product.price}
                 discountPrice={product.discountPrice}
+                discountPercentage={product.discountPercentage}
                 currency={product.currency}
+                slug={slug}
               />
 
               {hasActiveDiscount && product.discountEndsAt && (
@@ -147,7 +114,6 @@ export default async function ProductDetailsPage({ params }: Props) {
 
               <VariantSelector variants={variants} />
 
-              {/* 👈 ارسال siteSalesEnabled به ProductActions */}
               <ProductActions product={product} siteSalesEnabled={siteSalesEnabled} />
             </Card>
           </div>
@@ -193,20 +159,6 @@ export default async function ProductDetailsPage({ params }: Props) {
 
       {SITE_FEATURES.products.relatedProducts.enabled && (
         <RelatedProductsSection products={relatedProducts} />
-      )}
-
-      {SITE_FEATURES.products.recentlyViewed.enabled && (
-        <RelatedProductsSection products={recentlyViewedProducts} title="بازدیدهای اخیر" />
-      )}
-
-      {SITE_FEATURES.products.compare.enabled && (
-        <RelatedProductsSection products={compareProducts} title="مقایسه با محصولات مشابه" />
-      )}
-
-      {SITE_FEATURES.products.faq.enabled && (
-        <Section title="سوالات متداول محصول">
-          <FAQList items={productFAQItems} />
-        </Section>
       )}
     </Container>
   );
