@@ -13,16 +13,19 @@ interface PriceProps {
 
 export function Price({ price, discountPrice, discountPercentage, currency = "تومان", slug }: PriceProps) {
   const [finalPrice, setFinalPrice] = useState<number | null>(null);
+  const [basePrice, setBasePrice] = useState<number | null>(null);
+  const [discountPct, setDiscountPct] = useState<number | null>(null);
 
-  // 👈 محاسبه قیمت نهایی از API (اگه slug داشته باشیم)
   useEffect(() => {
     if (!slug) return;
     async function load() {
       try {
-        const res = await fetch(`/api/products/${slug}/price`);
+        const res = await fetch(`/api/products/${slug}/final-price`);
         if (res.ok) {
           const data = await res.json();
           setFinalPrice(Number(data.finalPrice));
+          setBasePrice(Number(data.basePrice));
+          setDiscountPct(Number(data.discountPercentage));
         }
       } catch (err) {
         console.error(err);
@@ -31,26 +34,22 @@ export function Price({ price, discountPrice, discountPercentage, currency = "ت
     load();
   }, [slug]);
 
-  const hasDiscount = (discountPercentage && discountPercentage > 0) || discountPrice;
+  const hasDiscount = discountPct && discountPct > 0;
   const displayPrice = finalPrice || price;
-  const originalPrice = finalPrice && finalPrice < price ? price : null;
+  const originalPrice = hasDiscount && basePrice ? basePrice : null;
 
   return (
     <div className="space-y-1">
       {hasDiscount ? (
         <>
-          {/* قیمت نهایی */}
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold text-red-600">
               {toPersianDigits(Math.round(displayPrice).toLocaleString())} {currency}
             </span>
-            {discountPercentage && (
-              <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-bold">
-                {toPersianDigits(discountPercentage)}% تخفیف
-              </span>
-            )}
+            <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-bold">
+              {toPersianDigits(discountPct!)}% تخفیف
+            </span>
           </div>
-          {/* قیمت قبلی (خط خورده) */}
           {originalPrice && (
             <span className="text-sm text-gray-400 line-through">
               {toPersianDigits(Math.round(originalPrice).toLocaleString())} {currency}
